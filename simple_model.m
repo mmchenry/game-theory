@@ -4,25 +4,28 @@ function simple_model
 
 %% Parameters
 
-% For the predator
-pred.spd0           = 1;
-pred.x0             = 0;
-pred.y0             = 0;
-pred.theta0         = 0;
+% Initial conditions for the predator 
+pred.spd0           = 1;        
+pred.x0             = 0;        
+pred.y0             = 0;        
+pred.theta0         = 0;        
 
-% For the prey
-prey.spd0           = 0;
-prey.x0             = 2;
-prey.y0             = 0.5;
-prey.theta0         = 45/180*pi;
-prey.dist_thresh    = 1;
-prey.spdEscape      = 10;
+% Initial conditions and parameters for the prey
+prey.spd0           = 0;            
+prey.x0             = 1;            
+prey.y0             = 0.5;          
+prey.theta0         = 45/180*pi;    
+prey.dist_thresh    = 1.5;          
+prey.spdEscape      = 2;            
+
+% Capture distance
+param.d_capture     = 0.05;          % distance where pred. captures prey
 
 % For the solver
-param.t_span = [0 5];
+param.t_span        = [0 5];
 
 % Solver options
-options    = odeset('RelTol',1e-3);
+options             = odeset('RelTol',1e-3,'Events',@capture_fnc);
 
 
 %fps = 30;
@@ -46,7 +49,6 @@ figure
 
 plot(R.xPrey,R.yPrey,'-b',R.xPrey(end),R.yPrey(end),'ob',...
         R.xPred,R.yPred,'-r',R.xPred(end),R.yPred(end),'or')
-
 
 function [t,X] = solver(pred,prey,param,options)
 % Numerical integration of the trajectory of predator and prey
@@ -74,13 +76,16 @@ X0(6,1) = pred.theta0;
         % Input: Predator position
         xPred = X(4);
         yPred = X(5);
-
-        % Input: Predator orientation
-        thetaPred  = X(6);
         
         % Distance from predator
         dist = hypot(xPred-xPrey,yPred-yPrey);
         
+        % Input: Predator orientation: 'dumb' predator
+%         thetaPred  = X(6);
+
+        % Input: 'Smart' Predator orientation: always toward Prey 
+        thetaPred = acos((xPrey-xPred)/dist);
+          
         % Predator speed
         spdPred = pred.spd0;
         
@@ -101,20 +106,36 @@ X0(6,1) = pred.theta0;
         dX(1,1) = spdPrey * cos(thetaPrey);
         dX(2,1) = spdPrey * sin(thetaPrey);
         
-         % Output: Prey rate of rotation
-        dX(3,1) = OmegaPrey;
+        % Output: Prey rate of rotation
+        dX(3,1) = thetaPrey;
         
         % Output: Predator velocity in x & y directions
         dX(4,1) = spdPred * cos(thetaPred);
         dX(5,1) = spdPred * sin(thetaPred);
 
-        % Output: Predator rate of rotation
-        dX(6,1) = OmegaPred;
+        % Output: Predator rate of rotation: 'dumb' predator
+%         dX(6,1) = thetaPred;
+        
+        % Output: Predtator rate of rotation for 'smart' predator
+        dX(6,1) = 0;
     end
-
 end
 
 
+% capture function: use with 'Event' option in ode45
+function [value, isterminal, direction] = capture_fnc(~,X)
+    % the event occurs when distance is less than capture distance
+    distance = hypot(X(4)-X(1),X(5)-X(2));
+    if distance < param.d_capture
+        value      = 0;
+        isterminal = 1;         % tells ode45 to stop integration
+        direction  = 0;
+    else
+        value = 1;
+        isterminal = 0;         
+        direction  = 0;
+    end
+end
 
 
 end
