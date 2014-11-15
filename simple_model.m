@@ -4,63 +4,94 @@ function simple_model
 
 %% Parameters
 
+% Scaling constants (helps the solver avoid crazy numbers)
+sL = 2e-2;      % m
+sT = 10e-3;     % s
+
 % Initial conditions for the predator 
-pred.spd0           = 1;        
-pred.x0             = 0;        
-pred.y0             = 0;        
-pred.theta0         = 0;        
+pred.spd0           = 1e-2;      % m/s  
+pred.x0             = 0;         % m      
+pred.y0             = 0;         % m      
+pred.theta0         = 0;         % rad    
 
 % Initial conditions and parameters for the prey
-prey.spd0           = 0;            
-prey.x0             = 1;            
-prey.y0             = 0.5;          
-prey.theta0         = 45/180*pi;    
-prey.dist_thresh    = 1.5;          
-prey.spdEscape      = 2;            
+prey.spd0           = 0;         % m/s          
+prey.x0             = 1e-2;      % m          
+prey.y0             = 1e-2;      % m          
+prey.theta0         = 45/180*pi; % rad            
+prey.spdEscape      = 5e-2;      % m/s     
 
-% Capture distance
-param.d_capture     = 0.05;          % distance where pred. captures prey
+% Capture distance (i.e. distance where pred. captures prey)
+param.d_capture     = 5e-3  ;    % m
 
-% For the solver
-param.t_span        = [0 5];
+% Proximity at which prey responds to predator
+param.dist_thresh   = 1e-2;      % m
+
+% Time span for simulation
+param.t_span        = [0 5];     % s
 
 % Solver options
 options             = odeset('RelTol',1e-3,'Events',@capture_fnc);
 
 
-%fps = 30;
+%% Normalize input data
+
+% Prey parameters
+p.prey.spd0         = prey.spd0             ./sL .* sT;
+p.prey.x0           = prey.x0               ./sL;
+p.prey.y0           = prey.y0               ./sL;
+p.prey.theta0       = prey.theta0;
+p.prey.spdEscape    = prey.spdEscape        ./sL .* sT;
+
+% Predator parameters
+p.pred.x0           = pred.x0               ./sL;
+p.pred.y0           = pred.y0               ./sL;
+p.pred.theta0       = pred.theta0;
+p.pred.spd0         = pred.spd0             ./sL .* sT;
+
+% Interaction parameters (i.e. both play a role)
+p.both.dist_thresh  = param.dist_thresh     ./sL; 
+p.both.d_capture    = param.d_capture       ./sL;
+p.t_span            = param.t_span          ./sT;
+
+clear param prey pred 
+
 
 %% Solve & post-processing
 
 % Run solver
-[t,X] = solver(pred,prey,param,options);
+[t,X] = solver(p,options);
 
-R.t = t;
-R.xPrey = X(:,1);
-R.yPrey = X(:,2);
+R.t = t                 .* sT;
+R.xPrey = X(:,1)        .* sL;
+R.yPrey = X(:,2)        .* sL;
 R.thetaPrey = X(:,3);
-R.xPred = X(:,4);
-R.yPred = X(:,5);
+R.xPred = X(:,4)        .* sL;
+R.yPred = X(:,5)        .* sL;
 R.thetaPred = X(:,6);
 
 clear X t
 
-figure
 
-plot(R.xPrey,R.yPrey,'-b',R.xPrey(end),R.yPrey(end),'ob',...
-        R.xPred,R.yPred,'-r',R.xPred(end),R.yPred(end),'or')
+%% Display results
 
-function [t,X] = solver(pred,prey,param,options)
+animate_sim(R)
+
+%figure
+%plot(R.xPrey,R.yPrey,'-b',R.xPrey(end),R.yPrey(end),'ob',...
+%        R.xPred,R.yPred,'-r',R.xPred(end),R.yPred(end),'or')
+
+function [t,X] = solver(p,options)
 % Numerical integration of the trajectory of predator and prey
 
-X0(1,1) = prey.x0;
-X0(2,1) = prey.y0;
-X0(3,1) = prey.theta0;
-X0(4,1) = pred.x0;
-X0(5,1) = pred.y0;
-X0(6,1) = pred.theta0;
+X0(1,1) = p.prey.x0;
+X0(2,1) = p.prey.y0;
+X0(3,1) = p.prey.theta0;
+X0(4,1) = p.pred.x0;
+X0(5,1) = p.pred.y0;
+X0(6,1) = p.pred.theta0;
 
-[t,X] = ode45(@gov_eqn,param.t_span,X0,options);
+[t,X] = ode45(@gov_eqn,p.t_span,X0,options);
 
 
     function dX = gov_eqn(t,X)
@@ -87,13 +118,13 @@ X0(6,1) = pred.theta0;
         thetaPred = acos((xPrey-xPred)/dist);
           
         % Predator speed
-        spdPred = pred.spd0;
+        spdPred = p.pred.spd0;
         
         % Prey speed
-        if dist < prey.dist_thresh
-            spdPrey = prey.spdEscape;
+        if dist < p.both.dist_thresh
+            spdPrey = p.prey.spdEscape;
         else
-            spdPrey = prey.spd0;
+            spdPrey = p.prey.spd0;
         end
         
         % Yaw rate  of prey
@@ -126,7 +157,7 @@ end
 function [value, isterminal, direction] = capture_fnc(~,X)
     % the event occurs when distance is less than capture distance
     distance = hypot(X(4)-X(1),X(5)-X(2));
-    if distance < param.d_capture
+    if distance < p.both.d_capture
         value      = 0;
         isterminal = 1;         % tells ode45 to stop integration
         direction  = 0;
