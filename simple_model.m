@@ -9,7 +9,7 @@ sL = 2e-2;      % m
 sT = 10e-3;     % s
 
 % Initial conditions for the predator 
-pred.spd0           = 1e-2;      % m/s  
+pred.spd0           = 6e-2;      % m/s  
 pred.x0             = 0;         % m      
 pred.y0             = 0;         % m      
 pred.theta0         = 0;         % rad    
@@ -18,11 +18,12 @@ pred.theta0         = 0;         % rad
 prey.spd0           = 0;         % m/s          
 prey.x0             = 1e-2;      % m          
 prey.y0             = 1e-2;      % m          
-prey.theta0         = 45/180*pi; % rad            
-prey.spdEscape      = 5e-2;      % m/s     
+prey.theta0         = 45/180*pi; % rad
+prey.spdEscape      = 9e-2;      % m/s     
+prey.spdResp        = 5e-2;      % m/s
 
-% Capture distance (i.e. distance where pred. captures prey)
-param.d_capture     = 5e-3  ;    % m
+% Capture distance (i.e. distance where predator captures prey)
+param.d_capture     = 1e-3  ;    % m
 
 % Proximity at which prey responds to predator
 param.dist_thresh   = 1e-2;      % m
@@ -42,6 +43,7 @@ p.prey.x0           = prey.x0               ./sL;
 p.prey.y0           = prey.y0               ./sL;
 p.prey.theta0       = prey.theta0;
 p.prey.spdEscape    = prey.spdEscape        ./sL .* sT;
+p.prey.spdResp      = prey.spdResp          ./sL .* sT;
 
 % Predator parameters
 p.pred.x0           = pred.x0               ./sL;
@@ -60,9 +62,10 @@ clear param prey pred
 %% Solve & post-processing
 
 % Run solver
-[t,X] = solver(p,options);
+[t,X,teout] = solver(p,options);
 
 R.t = t                 .* sT;
+R.tEnd = teout          .* sT;
 R.xPrey = X(:,1)        .* sL;
 R.yPrey = X(:,2)        .* sL;
 R.thetaPrey = X(:,3);
@@ -70,18 +73,23 @@ R.xPred = X(:,4)        .* sL;
 R.yPred = X(:,5)        .* sL;
 R.thetaPred = X(:,6);
 
-clear X t
+clear X t teout
 
 
 %% Display results
 
 animate_sim(R)
 
+if isempty(R.tEnd)
+    disp('prey successfully escaped')
+else
+    disp(['the prey was captured at time = ' num2str(R.tEnd)])
+end
 %figure
 %plot(R.xPrey,R.yPrey,'-b',R.xPrey(end),R.yPrey(end),'ob',...
 %        R.xPred,R.yPred,'-r',R.xPred(end),R.yPred(end),'or')
 
-function [t,X] = solver(p,options)
+function [t,X, teout] = solver(p,options)
 % Numerical integration of the trajectory of predator and prey
 
 X0(1,1) = p.prey.x0;
@@ -91,7 +99,7 @@ X0(4,1) = p.pred.x0;
 X0(5,1) = p.pred.y0;
 X0(6,1) = p.pred.theta0;
 
-[t,X] = ode45(@gov_eqn,p.t_span,X0,options);
+[t,X, teout] = ode45(@gov_eqn,p.t_span,X0,options);
 
 
     function dX = gov_eqn(t,X)
@@ -102,7 +110,7 @@ X0(6,1) = p.pred.theta0;
         yPrey = X(2);
         
         % Input: Prey orientation
-        thetaPrey  = X(3);
+        thetaPrey  = X(3);     
         
         % Input: Predator position
         xPred = X(4);
@@ -110,7 +118,7 @@ X0(6,1) = p.pred.theta0;
         
         % Distance from predator
         dist = hypot(xPred-xPrey,yPred-yPrey);
-        
+     
         % Input: Predator orientation: 'dumb' predator
 %         thetaPred  = X(6);
 
@@ -122,9 +130,16 @@ X0(6,1) = p.pred.theta0;
         
         % Prey speed
         if dist < p.both.dist_thresh
-            spdPrey = p.prey.spdEscape;
+            spdPrey = p.prey.spdResp; 
         else
             spdPrey = p.prey.spd0;
+        end
+        
+        % Initiate escape if current distance is twice capture distance
+        if dist < 2*p.both.d_capture
+            [thetaPrey] = prey_escape(thetaPrey);
+            spdPrey     = p.prey.spdEscape;
+        else
         end
         
         % Yaw rate  of prey
@@ -138,7 +153,8 @@ X0(6,1) = p.pred.theta0;
         dX(2,1) = spdPrey * sin(thetaPrey);
         
         % Output: Prey rate of rotation
-        dX(3,1) = thetaPrey;
+%         dX(3,1) = thetaPrey;
+        dX(3,1) = 0;                
         
         % Output: Predator velocity in x & y directions
         dX(4,1) = spdPred * cos(thetaPred);
