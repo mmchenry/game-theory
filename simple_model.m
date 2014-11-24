@@ -21,14 +21,14 @@ pred.x0                 = 0;         % m
 pred.y0                 = 0;         % m      
 pred.theta0             = 0;         % rad  
 
-pred.saccade_interval   = 3;   
+pred.saccade_interval   = 2;   
 pred.saccade_period     = 0.5;       % s
 pred.saccade_omega      = 2;         % rad/s
 
 pred.body_width         = 0.3e-2;    % m
 pred.head_length        = 0.4e-2;    % m 
 
-pred.fieldSize          = 1.2;
+pred.fieldSize          = 2;
 
 % Capture distance (i.e. distance where pred. captures prey)
 param.d_capture     = 5e-3  ;    % m
@@ -37,7 +37,7 @@ param.d_capture     = 5e-3  ;    % m
 param.dist_thresh   = 1e-2;      % m
 
 % Time span for simulation
-param.t_span        = [0 30];     % s
+param.t_span        = [0 60];     % s
 
 % Tank dimension
 param.tank_radius   = 10e-2;     % m
@@ -76,7 +76,7 @@ p.tank_rad          = param.tank_radius     ./sL;
 %% Configure solver
 
 % Solver options
-options  = odeset('RelTol',1e-5,...
+options  = odeset('RelTol',1e-3,...
                   'Events',@capture_fnc, ...
                   'MaxStep',p.pred.sccd_prd/2);
               
@@ -118,7 +118,6 @@ vis_results(R,'Turning data')
 figure;
 vis_results(R,'Trajectories')
 
-ttt=3
 
 %% Solver
 
@@ -183,32 +182,15 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         % Predator orientation
         thetaPred  = X(6);
         
+        
         % DECISIONS ABOUT RATES OF CHANGE ----------------------
-        
-        %Distance from predator
-        %dist = hypot(xPred-xPrey,yPred-yPrey);
-        
-        % Tank in predator FOR
-        %[xTankPredL, yTankPredL] = coord_trans(thetaPred, [xPred yPred], ...
-        %                    xTank, yTank, 'global to body');
                         
         % Transform head points into global FOR                 
         [xHead, yHead] = coord_trans(thetaPred, [xPred yPred], ...
                                 xHeadPredL, yHeadPredL, 'body to global');                
         [xCollPred, yCollPred] = coord_trans(thetaPred, [xPred yPred], ...
                                 xHeadPredL, yHeadPredL, 'body to global'); 
-                            
-        % Prevent movement outside of boundary
-        %[xPred, yPred, xHead, yHead] = enforce_tank(xPred, yPred, ...
-        %                      xHead, yHead, xTank, yTank, p.tank_rad);
-                            
-        % Input: 'Smart' Predator orientation: always toward Prey 
-        %thetaPred = acos((xPrey-xPred)/dist);
-        %thetaPred = X(6);
-                 
-        % Distance from predator
-        %dist = hypot(xPred-xPrey,yPred-yPrey);
-        
+                                   
         % Predator speed
         spdPred = p.pred.spd0;
         
@@ -222,24 +204,18 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         % Predator behavior ----------------------------------------
         if 1 
             % TODO: set sensory criteria for strike
-            [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = foraging_pred(...
+            [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = foraging(...
                      xCollPred, yCollPred, thetaPred, p.pred, t_PredSccd, t, ...
                      dir_PredSccd, on_PredSccd, p.tank_rad, 'predator');
 %         else
-%             [spdPred,OmegaPred] = strike_pred(xPred,yPred,thetaPred,...
+%             [spdPred,OmegaPred] = strike(xPred,yPred,thetaPred,...
 %                 xPrey,yPrey,thetaPrey);
 %             %TODO: create this m-file
         end
         
-        % Predator rate of rotation: 'dumb' predator
-%         dX(6,1) = thetaPred;
-        
-        
         % Yaw rate of prey
         omegaPrey = 0;
         
-        % Yaw rate of predator
-        %OmegaPred = 0;
     
         % DEFINE OUTPUTS ---------------------- 
         
@@ -257,7 +233,6 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         % Predator rate of rotation 
         dX(6,1) = omegaPred;
         
-        %[t dX(6) onSccd]
     end
 end
 
