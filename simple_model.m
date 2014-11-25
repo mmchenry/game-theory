@@ -9,17 +9,21 @@ sL = 2e-2;      % m
 sT = 10e-3;     % s
 
 % Prey parameters -----------------------------------------
-prey.spd0           = 0;         % m/s          
+prey.spd0           = .15e-2;         % m/s          
 prey.x0             = 1e-2;      % m          
 prey.y0             = 1e-2;      % m          
 prey.theta0         = 45/180*pi; % rad            
 prey.spdEscape      = 5e-2;      % m/s  
+prey.omegaEscape    = 35;        % rad/s
+prey.spdResp        = 5e-2;      % m/s
+prey.latEscape      = 4e-3;      % s
+prey.durEscape      = 40e-3;     % s
 
 % Predator parameters -------------------------------------
 pred.spd0               = 2e-2;      % m/s  
 pred.x0                 = 0;         % m      
 pred.y0                 = 0;         % m      
-pred.theta0             = 0;         % rad  
+pred.theta0             = pi/9;         % rad  
 
 pred.saccade_interval   = 2;   
 pred.saccade_period     = 0.5;       % s
@@ -51,6 +55,11 @@ p.prey.x0           = prey.x0               ./sL;
 p.prey.y0           = prey.y0               ./sL;
 p.prey.theta0       = prey.theta0;
 p.prey.spdEscape    = prey.spdEscape        ./sL .* sT;
+p.prey.rotSpdEscape = prey.omegaEscape           .* sT;
+p.prey.spdResp      = prey.spdResp          ./sL .* sT;
+p.prey.lat          = prey.latEscape        ./sT;
+p.prey.durEscape    = prey.durEscape        ./sT;
+
 
 % Predator parameters -------------------------------------
 p.pred.w            = pred.body_width       ./sL;
@@ -87,7 +96,7 @@ options  = odeset('RelTol',1e-3,...
 % TODO: Adjust saccades to hug walls
 
 % Run solver
-[t,X] = solver(p,options);
+[t,X,t_event] = solver(p,options);
 
 % Results stored in SI units 
 R.t = t                 .* sT;
@@ -97,19 +106,21 @@ R.thetaPrey = X(:,3);
 R.xPred = X(:,4)        .* sL;
 R.yPred = X(:,5)        .* sL;
 R.thetaPred = X(:,6);
+R.tEnd = t_event        .* sT;
 
 % Store input parameters
 R.pred   = pred;
 R.prey   = prey;
 R.param  = param;
 
-clear X t
+clear X t t_event
 
 
 %% Display results
 
 % Animate results with even time intervals
-%animate_sim(R)
+% figure;
+% animate_sim(R,10,28)
 
 % Plot orientation angles
 figure;
@@ -118,10 +129,16 @@ vis_results(R,'Turning data')
 figure;
 vis_results(R,'Trajectories')
 
+% Display whether or not prey escaped
+if isempty(R.tEnd)
+    disp('prey successfully escaped')
+else
+    disp(['the prey was captured at time = ' num2str(R.tEnd)])
+end
 
 %% Solver
 
-function [t,X] = solver(p,options)
+function [t,X,t_event] = solver(p,options)
 % Numerical integration of the trajectory of predator and prey
 
 X0(1,1) = p.prey.x0;
@@ -160,9 +177,17 @@ yHeadPredL = (p.pred.w/2) .* sin(angHead);
 xCollPredL = p.pred.fldSize*p.pred.L    .* cos(angHead) - p.pred.L;
 yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
 
+% Logical that indicates whether the fish is presently escaping 
+escapeOn = 0;
+
+% Initiate stimTime variable
+stimTime = nan;
+
+% Set initial direction of escape 
+dirEsc = 1;
 
 % Runge-Kutta solver
-[t,X] = ode45(@gov_eqn,p.t_span,X0,options);
+[t,X,t_event] = ode45(@gov_eqn,p.t_span,X0,options);
 
     function dX = gov_eqn(t,X)
         % ODE of the dynamics of the system
@@ -184,6 +209,9 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         
         
         % DECISIONS ABOUT RATES OF CHANGE ----------------------
+        
+        % Distance between prey and predator
+        dist = hypot(xPred-xPrey,yPred-yPrey);
                         
         % Transform head points into global FOR                 
         [xHead, yHead] = coord_trans(thetaPred, [xPred yPred], ...
@@ -194,14 +222,50 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         % Predator speed
         spdPred = p.pred.spd0;
         
-%         % Prey behavior -------------------------------------------
-%         if dist < p.both.dist_thresh
-%             spdPrey = p.prey.spdEscape;
-%         else
+       % Prey speed         
+        if dist < p.both.dist_thresh
+            spdPrey = p.prey.spdResp;
+        else
             spdPrey = p.prey.spd0;
-%        end
+       end
+        
+        % Prey behavior -------------------------------------------
+        
+        % Check if in an escape response and within 4 x capture distance
+        if ~escapeOn && (dist < 4*p.both.d_capture)
+
+            % Indicate that we are in an escape response
+            escapeOn = 1;
+            
+            % Note the time of its start
+            stimTime = t;
+            
+            % Set escape response direction 
+            dirEsc = rand(1);
+            dirEsc = (dirEsc-.5)./abs(dirEsc-.5);
+
+            % Determine speed of rotation of escape 
+            % normrnd(m,s) returns rndm # from norm dist. w/ mean=m,stdev=s
+            rotSpdEscape = normrnd(p.prey.rotSpdEscape/sT, 1.5);
+            p.prey.rotSpdEscape = rotSpdEscape .* sT;
+        end
+        
+        % If we are beyond the escape duration . . .
+        if escapeOn && ((t-stimTime-p.prey.lat) > p.prey.durEscape)
+            escapeOn = 0;
+        end
+        
+        % If we are within the period of an escape . . .          
+        if escapeOn 
+            %stimTime
+            [omegaPrey, spdPrey] = prey_escape(t, stimTime,...
+                                               p.prey, 0, 0, dirEsc);
+        else
+            omegaPrey = 0;
+        end 
         
         % Predator behavior ----------------------------------------
+        
         if 1 
             % TODO: set sensory criteria for strike
             [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = foraging(...
@@ -214,7 +278,7 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         end
         
         % Yaw rate of prey
-        omegaPrey = 0;
+%         omegaPrey = 0;
         
     
         % DEFINE OUTPUTS ---------------------- 
@@ -241,15 +305,15 @@ end
 function [value, isterminal, direction] = capture_fnc(~,X)
     % the event occurs when distance is less than capture distance
     distance = hypot(X(4)-X(1),X(5)-X(2));
-%     if distance < p.both.d_capture
-%         value      = 0;
-%         isterminal = 1;         % tells ode45 to stop integration
-%         direction  = 0;
-%     else
+    if distance < p.both.d_capture
+        value      = 0;
+        isterminal = 1;         % tells ode45 to stop integration
+        direction  = 0;
+    else
         value = 1;
         isterminal = 0;         
         direction  = 0;
-%    end
+   end
 end
 
 
