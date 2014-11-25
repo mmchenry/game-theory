@@ -1,55 +1,17 @@
-function simple_model
-% This is a simple predator-prey interaction model
+function R = simple_model(pred,prey,param)
+% ODE Predator-prey interaction model
 
 
 %% Parameters
 
 % Scaling constants (helps the solver avoid crazy numbers)
-sL = 2e-2;      % m
-sT = 10e-3;     % s
-
-% Prey parameters -----------------------------------------
-prey.spd0           = .15e-2;         % m/s          
-prey.x0             = 1e-2;      % m          
-prey.y0             = 1e-2;      % m          
-prey.theta0         = 45/180*pi; % rad            
-prey.spdEscape      = 5e-2;      % m/s  
-prey.omegaEscape    = 35;        % rad/s
-prey.spdResp        = 5e-2;      % m/s
-prey.latEscape      = 4e-3;      % s
-prey.durEscape      = 40e-3;     % s
-
-% Predator parameters -------------------------------------
-pred.spd0               = 2e-2;      % m/s  
-pred.x0                 = 0;         % m      
-pred.y0                 = 0;         % m      
-pred.theta0             = pi/9;         % rad  
-
-pred.saccade_interval   = 2;   
-pred.saccade_period     = 0.5;       % s
-pred.saccade_omega      = 2;         % rad/s
-
-pred.body_width         = 0.3e-2;    % m
-pred.head_length        = 0.4e-2;    % m 
-
-pred.fieldSize          = 2;
-
-% Capture distance (i.e. distance where pred. captures prey)
-param.d_capture     = 5e-3  ;    % m
-
-% Proximity at which prey responds to predator
-param.dist_thresh   = 1e-2;      % m
-
-% Time span for simulation
-param.t_span        = [0 60];     % s
-
-% Tank dimension
-param.tank_radius   = 10e-2;     % m
+sL = pred.head_length * 4;      % m
+sT = pred.saccade_interval / 4; % s
 
 
 %% Normalize input data
 
-% Prey parameters -----------------------------------------
+% PREY --------------------------------------------------------------------
 p.prey.spd0         = prey.spd0             ./sL .* sT;
 p.prey.x0           = prey.x0               ./sL;
 p.prey.y0           = prey.y0               ./sL;
@@ -60,24 +22,41 @@ p.prey.spdResp      = prey.spdResp          ./sL .* sT;
 p.prey.lat          = prey.latEscape        ./sT;
 p.prey.durEscape    = prey.durEscape        ./sT;
 
+% Dimensions of head
+p.prey.w            = prey.body_width       ./sL;
+p.prey.L            = prey.head_length      ./sL;
 
-% Predator parameters -------------------------------------
-p.pred.w            = pred.body_width       ./sL;
-p.pred.L            = pred.head_length      ./sL;
+
+
+% PREDATOR ----------------------------------------------------------------
+% Initial body position & orientation 
 p.pred.x0           = pred.x0               ./sL;
 p.pred.y0           = pred.y0               ./sL;
 p.pred.theta0       = pred.theta0;
+
+% Dimensions of head
+p.pred.w            = pred.body_width       ./sL;
+p.pred.L            = pred.head_length      ./sL;
+
+% Kinematic parameters
 p.pred.spd0         = pred.spd0             ./sL .* sT;
 p.pred.sccd_prd     = pred.saccade_period   ./ sT;
 p.pred.sccd_intvl   = pred.saccade_interval ./ sT;
 p.pred.sccd_omega   = pred.saccade_omega    .* sT;
-p.pred.fldSize      = pred.fieldSize;
+p.pred.wall_omega   = pred.wall_omega       .* sT;
 
-% Interaction parameters (i.e. both play a role) ---------
+% Sensory parameters
+p.pred.fldSize      = pred.fieldSize;
+p.pred.vis_az       = pred.vis_az;
+p.pred.verg_ang     = pred.verg_ang;
+
+
+% INTERACTION -------------------------------------------------------------
 p.both.dist_thresh  = param.dist_thresh     ./sL; 
 p.both.d_capture    = param.d_capture       ./sL;
 
-% General parameters -------------------------------------
+
+% SOLVER ------------------------------------------------------------------
 p.t_span            = param.t_span          ./sT;
 p.tank_rad          = param.tank_radius     ./sL;
 
@@ -93,48 +72,26 @@ options  = odeset('RelTol',1e-3,...
 %% Solve & save results in SI units
 
 
-% TODO: Adjust saccades to hug walls
-
 % Run solver
 [t,X,t_event] = solver(p,options);
 
 % Results stored in SI units 
-R.t = t                 .* sT;
-R.xPrey = X(:,1)        .* sL;
-R.yPrey = X(:,2)        .* sL;
-R.thetaPrey = X(:,3);
-R.xPred = X(:,4)        .* sL;
-R.yPred = X(:,5)        .* sL;
-R.thetaPred = X(:,6);
-R.tEnd = t_event        .* sT;
+R.t = t .* sT;
+R.tEnd = t_event .* sT;
+
+R.xPrey         = X(:,1)    .* sL;
+R.yPrey         = X(:,2)    .* sL;
+R.thetaPrey     = X(:,3);
+R.xPred         = X(:,4)    .* sL;
+R.yPred         = X(:,5)    .* sL;
+R.thetaPred     = X(:,6);
 
 % Store input parameters
 R.pred   = pred;
 R.prey   = prey;
 R.param  = param;
 
-clear X t t_event
-
-
-%% Display results
-
-% Animate results with even time intervals
-% figure;
-% animate_sim(R,10,28)
-
-% Plot orientation angles
-figure;
-vis_results(R,'Turning data')
-
-figure;
-vis_results(R,'Trajectories')
-
-% Display whether or not prey escaped
-if isempty(R.tEnd)
-    disp('prey successfully escaped')
-else
-    disp(['the prey was captured at time = ' num2str(R.tEnd)])
-end
+% clear X t t_event
 
 %% Solver
 
@@ -147,7 +104,8 @@ X0(3,1) = p.prey.theta0;
 X0(4,1) = p.pred.x0;
 X0(5,1) = p.pred.y0;
 X0(6,1) = p.pred.theta0;
-%X0(7,1) = p.tank_rad - hypot(p.pred.x0,p.pred.y0);
+
+% Predator foraging parameters ---------------------------
 
 % Initial predator saccade time
 t_PredSccd = p.t_span(1);
@@ -159,8 +117,20 @@ dir_PredSccd = (dir_PredSccd-.5)./abs(dir_PredSccd-.5);
 % Whether currently executing a saccade
 on_PredSccd = 0;
 
-% Whether currently bumping into a wall
-bumpPred = 0;
+% Whether predator is currently tracking a prey
+seePrey = 0;
+
+% Prey routine swimming parameters ----------------------
+
+% Initial predator saccade time
+t_PreySccd = p.t_span(1);
+
+% Initial saccade direction (randomly selected)
+dir_PreySccd = rand(1);
+dir_PreySccd = (dir_PreySccd-.5)./abs(dir_PreySccd-.5);
+
+% Whether currently executing a saccade
+on_PreySccd = 0;
 
 % Points describing boundary of tank (global FOR)
 theta = [linspace(0,2*pi,1000)]';
@@ -177,6 +147,11 @@ yHeadPredL = (p.pred.w/2) .* sin(angHead);
 xCollPredL = p.pred.fldSize*p.pred.L    .* cos(angHead) - p.pred.L;
 yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
 
+% Points describing prey head (local FOR)
+angHead    = [linspace(-pi/2, pi/2, 500)]';
+xHeadPreyL = p.prey.L    .* cos(angHead) - p.prey.L;
+yHeadPreyL = (p.prey.w) .* sin(angHead);
+
 % Logical that indicates whether the fish is presently escaping 
 escapeOn = 0;
 
@@ -190,9 +165,10 @@ dirEsc = 1;
 [t,X,t_event] = ode45(@gov_eqn,p.t_span,X0,options);
 
     function dX = gov_eqn(t,X)
-        % ODE of the dynamics of the system
+    % ODE for the dynamics of the system
         
-        % DEFINE INPUTS ----------------------
+        %  INPUTS ---------------------------------------------------------
+        
         % Prey position
         xPrey = X(1);
         yPrey = X(2);
@@ -207,19 +183,22 @@ dirEsc = 1;
         % Predator orientation
         thetaPred  = X(6);
         
-        
-        % DECISIONS ABOUT RATES OF CHANGE ----------------------
-        
+
         % Distance between prey and predator
         dist = hypot(xPred-xPrey,yPred-yPrey);
+
+        % DECISIONS ABOUT RATES OF CHANGE ---------------------------------
                         
-        % Transform head points into global FOR                 
-        [xHead, yHead] = coord_trans(thetaPred, [xPred yPred], ...
-                                xHeadPredL, yHeadPredL, 'body to global');                
-        [xCollPred, yCollPred] = coord_trans(thetaPred, [xPred yPred], ...
-                                xHeadPredL, yHeadPredL, 'body to global'); 
-                                   
-        % Predator speed
+        % Transform head points of predator into global FOR                 
+        [xHead, yHead] = coord_trans('body to global', ...
+                      thetaPred, [xPred yPred], xHeadPredL, yHeadPredL);   
+                            
+        % Transform region outside of head points of predator into global FOR                    
+        [xCollPred, yCollPred] = coord_trans('body to global', ...
+                      thetaPred, [xPred yPred], xCollPredL, yCollPredL); 
+
+        
+        % Predator speed (fixed)
         spdPred = p.pred.spd0;
         
        % Prey speed         
@@ -230,6 +209,15 @@ dirEsc = 1;
        end
         
         % Prey behavior -------------------------------------------
+        
+        % Routine swimming 
+        if ~escapeOn 
+            [omegaPrey, t_PreySccd, dir_PreySccd, on_PreySccd] = prey_routine(...
+                     xCollPred, yCollPred, thetaPred, p.prey, t_PreySccd, t, ...
+                     dir_PreySccd, on_PreySccd, p.tank_rad, 'prey');
+        end
+        
+        % Escape response
         
         % Check if in an escape response and within 4 x capture distance
         if ~escapeOn && (dist < 4*p.both.d_capture)
@@ -264,10 +252,16 @@ dirEsc = 1;
             omegaPrey = 0;
         end 
         
+
         % Predator behavior ----------------------------------------
         
+        % Determine whether prey is detected
+        if ~seePrey
+            %seePrey = find_prey(xPrey, yPrey, thetaPred, xPred, yPred);
+        end
+
+        
         if 1 
-            % TODO: set sensory criteria for strike
             [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = foraging(...
                      xCollPred, yCollPred, thetaPred, p.pred, t_PredSccd, t, ...
                      dir_PredSccd, on_PredSccd, p.tank_rad, 'predator');
@@ -280,8 +274,9 @@ dirEsc = 1;
         % Yaw rate of prey
 %         omegaPrey = 0;
         
+        
     
-        % DEFINE OUTPUTS ---------------------- 
+        % OUTPUTS --------------------------------------------------------- 
         
         % Prey velocity in x & y directions
         dX(1,1) = spdPrey * cos(thetaPrey);
