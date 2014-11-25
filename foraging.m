@@ -17,7 +17,7 @@ function [omega, t_sccd, dirSccd, onSccd] = ...
 % 
 % omega  - rate of body rotation
 
-gain = 20;
+%gain = 20;
 
 % Max distance of body from origin
 body_dist = max(hypot(xBod, yBod));
@@ -54,7 +54,7 @@ if body_dist >= tank_rad
     dev_ang = (tan_ang - theta) / pi;
     
     % Make omega proportional to deviation
-    omega = dev_ang * pred.sccd_omega * gain;
+    omega = dev_ang * pred.wall_omega;
     
     % Set saccade start to current time
     t_sccd = t;
