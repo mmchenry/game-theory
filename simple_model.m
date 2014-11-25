@@ -12,11 +12,17 @@ sT = pred.saccade_interval / 4; % s
 %% Normalize input data
 
 % PREY --------------------------------------------------------------------
-p.prey.spd0         = prey.spd0             ./sL .* sT;
+% Initial body position & orientation 
 p.prey.x0           = prey.x0               ./sL;
 p.prey.y0           = prey.y0               ./sL;
 p.prey.theta0       = prey.theta0;
+
+% Kinematic parameters
+p.prey.spd0         = prey.spd0             ./sL .* sT;
 p.prey.spdEscape    = prey.spdEscape        ./sL .* sT;
+
+% Morphometrics
+p.prey.bod_len      = prey.bod_len          ./sL;
 
 
 % PREDATOR ----------------------------------------------------------------
@@ -40,22 +46,26 @@ p.pred.wall_omega   = pred.wall_omega       .* sT;
 p.pred.fldSize      = pred.fieldSize;
 p.pred.vis_az       = pred.vis_az;
 p.pred.verg_ang     = pred.verg_ang;
+p.pred.rtnl_den     = pred.rtnl_den;
 
 
-% INTERACTION -------------------------------------------------------------
+% GENERAL -----------------------------------------------------------------
 p.both.dist_thresh  = param.dist_thresh     ./sL; 
 p.both.d_capture    = param.d_capture       ./sL;
+p.tank_rad          = param.tank_radius     ./sL;
 
 
 % SOLVER ------------------------------------------------------------------
 p.t_span            = param.t_span          ./sT;
-p.tank_rad          = param.tank_radius     ./sL;
+p.rel_tol           = param.rel_tol;
+p.abs_tol           = param.abs_tol;
 
 
 %% Configure solver
 
 % Solver options
-options  = odeset('RelTol',1e-3,...
+options  = odeset('RelTol',p.rel_tol,...
+                  'AbsTol',p.abs_tol, ...
                   'Events',@capture_fnc, ...
                   'MaxStep',p.pred.sccd_prd/2);
               
@@ -80,7 +90,8 @@ R.thetaPred     = X(:,6);
 R.pred   = pred;
 R.prey   = prey;
 R.param  = param;
-
+R.sT     = sT;
+R.sL     = sL;
 
 
 %% Solver
@@ -132,15 +143,15 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         %  INPUTS ---------------------------------------------------------
         
         % Prey position
-        xPrey = X(1);
-        yPrey = X(2);
+        xPrey      = X(1);
+        yPrey      = X(2);
         
         % Prey orientation
         thetaPrey  = X(3);
         
         % Predator position
-        xPred = X(4);
-        yPred = X(5);
+        xPred      = X(4);
+        yPred      = X(5);
 
         % Predator orientation
         thetaPred  = X(6);
@@ -172,7 +183,8 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
         
         % Determine whether prey is detected
         if ~seePrey
-            %seePrey = find_prey(xPrey, yPrey, thetaPred, xPred, yPred);
+            seePrey = find_prey(xPred, yPred, thetaPred,  ...
+                                xPrey, yPrey, thetaPrey,p);
         end
         
         

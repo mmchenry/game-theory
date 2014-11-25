@@ -1,4 +1,4 @@
-function [xRT,yRT] = coord_trans(type,theta,origin,x,y,verg_ang,vis_az)
+function [xRT,yRT] = coord_trans(type,theta,origin,x,y,verg_ang,vis_az,eye_side)
 % Transforms points between coordinate systems 
 %
 % type      - String indicating the kind of transformation to perform
@@ -8,6 +8,7 @@ function [xRT,yRT] = coord_trans(type,theta,origin,x,y,verg_ang,vis_az)
 % y         - vector of y-coordinates to transform (nx1)
 % verg_ang  - vergence angle of the eyes in radians (1x1)
 % vis_az    - Azimuth of the field of view in radians (1x1)
+% eye_side  - String indicating which eye ('right' or 'left')
 
 
 switch type
@@ -58,53 +59,37 @@ switch type
         yRT = ptsT(:,2) + origin(2);       
         
 
-    case 'global to right eye'
+    case 'global to eye'
     % Note: this returns coordinates in the body FOR
     
         % Transform coordinates to the body FOR
         [x,y] = coord_trans('global to body',theta,origin,x,y);
         
         % psi - forward tilt angle of an eye relative to the body
-        psi = -pi/2 + verg_ang/2;
+        if strcmp(eye_side,'right')
+            psi = -pi/2 + verg_ang/2;           
+        elseif strcmp(eye_side,'left')
+            psi = pi/2 - verg_ang/2;    
+        else
+            error('Did not recognize "eye_side" input')
+        end
          
         % Transform coordinates to the eye FOR
-        [xRT,yRT] = coord_trans('global to body',psi,[0 0],x,y);
+        [x,y] = coord_trans('global to body',psi,[0 0],x,y);
         
         % Angular position of points
-        pnt_ang = atan2(yRT,xRT);
+        pnt_ang = atan2(y,x);
+        
+        % Set up nan vectors
+        xRT = nan(length(x),1);
+        yRT = xRT;
         
         % Index of point in FOV
         idx = (pnt_ang >= -vis_az/2) & (pnt_ang <= vis_az/2);
         
         % Include only FOV points
-        xRT = xRT(idx);
-        yRT = yRT(idx);
-        
-        % Transform back into body coordinates
-        [xRT,yRT] = coord_trans('body to global',psi,origin,xRT,yRT);
-        
-        
-     case 'global to left eye'
-     % Note: this returns coordinates in the body FOR
-     
-        % Transform coordinates to the body FOR
-        [x,y] = coord_trans('global to body',theta,origin,x,y);
-        
-        % psi - forward tilt angle of an eye relative to the body
-        psi = pi/2 - verg_ang/2;
-         
-        % Transform coordinates to the eye FOR
-        [xRT,yRT] = coord_trans('global to body',psi,[0 0],x,y);
-        
-        % Angular position of points
-        pnt_ang = atan2(yRT,xRT);
-        
-        % Index of point in FOV
-        idx = (pnt_ang >= -vis_az/2) & (pnt_ang <= vis_az/2);
-        
-        % Include only FOV points
-        xRT = xRT(idx);
-        yRT = yRT(idx);
+        xRT(idx) = x(idx);
+        yRT(idx) = y(idx);
         
         % Transform back into body coordinates
         [xRT,yRT] = coord_trans('body to global',psi,origin,xRT,yRT);
