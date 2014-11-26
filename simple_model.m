@@ -12,10 +12,12 @@ sT = pred.saccade_interval / 4; % s
 %% Normalize input data
 
 % PREY --------------------------------------------------------------------
-p.prey.spd0         = prey.spd0             ./sL .* sT;
+% Initial body position & orientation 
 p.prey.x0           = prey.x0               ./sL;
 p.prey.y0           = prey.y0               ./sL;
 p.prey.theta0       = prey.theta0;
+
+% Prey escape parameters
 p.prey.spdEscape    = prey.spdEscape        ./sL .* sT;
 p.prey.rotSpdEscape = prey.omegaEscape           .* sT;
 p.prey.spdResp      = prey.spdResp          ./sL .* sT;
@@ -26,6 +28,15 @@ p.prey.durEscape    = prey.durEscape        ./sT;
 p.prey.w            = prey.body_width       ./sL;
 p.prey.L            = prey.head_length      ./sL;
 
+% Kinematic parameters
+p.prey.spd0         = prey.spd0             ./sL .* sT;
+p.prey.sccd_prd     = prey.saccade_period   ./ sT;
+p.prey.sccd_intvl   = prey.saccade_interval ./ sT;
+p.prey.sccd_omega   = prey.saccade_omega    .* sT;
+p.prey.wall_omega   = prey.wall_omega       .* sT;
+
+% Sensory parameters
+p.prey.fldSize      = prey.fieldSize;
 
 
 % PREDATOR ----------------------------------------------------------------
@@ -105,7 +116,7 @@ X0(4,1) = p.pred.x0;
 X0(5,1) = p.pred.y0;
 X0(6,1) = p.pred.theta0;
 
-% Predator foraging parameters ---------------------------
+% PREDATOR FORAGING PARAMETERS --------------------------------------------
 
 % Initial predator saccade time
 t_PredSccd = p.t_span(1);
@@ -120,7 +131,7 @@ on_PredSccd = 0;
 % Whether predator is currently tracking a prey
 seePrey = 0;
 
-% Prey routine swimming parameters ----------------------
+% PREY ROUTINE SWIMMING PARAMETERS ----------------------------------------
 
 % Initial predator saccade time
 t_PreySccd = p.t_span(1);
@@ -131,6 +142,8 @@ dir_PreySccd = (dir_PreySccd-.5)./abs(dir_PreySccd-.5);
 
 % Whether currently executing a saccade
 on_PreySccd = 0;
+
+% POINTS FOR TANK, PREY & PREDATOR HEAD -----------------------------------
 
 % Points describing boundary of tank (global FOR)
 theta = [linspace(0,2*pi,1000)]';
@@ -149,10 +162,12 @@ yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
 
 % Points describing prey head (local FOR)
 angHead    = [linspace(-pi/2, pi/2, 500)]';
-xHeadPreyL = p.prey.L    .* cos(angHead) - p.prey.L;
-yHeadPreyL = (p.prey.w) .* sin(angHead);
+xCollPreyL = p.prey.fldSize*p.prey.L    .* cos(angHead) - p.prey.L;
+yCollPreyL = p.prey.fldSize*(p.prey.w/2) .* sin(angHead);
 
-% Logical that indicates whether the fish is presently escaping 
+% PARAMETERS USEFUL FOR PREY ESCAPE ---------------------------------------
+
+% Logical that indicates whether prey is presently escaping 
 escapeOn = 0;
 
 % Initiate stimTime variable
@@ -196,6 +211,10 @@ dirEsc = 1;
         % Transform region outside of head points of predator into global FOR                    
         [xCollPred, yCollPred] = coord_trans('body to global', ...
                       thetaPred, [xPred yPred], xCollPredL, yCollPredL); 
+        
+        % Transform region outside of head points of prey into global FOR                    
+        [xCollPrey, yCollPrey] = coord_trans('body to global', ...
+                      thetaPrey, [xPrey yPrey], xCollPreyL, yCollPreyL);                  
 
         
         % Predator speed (fixed)
@@ -206,20 +225,13 @@ dirEsc = 1;
             spdPrey = p.prey.spdResp;
         else
             spdPrey = p.prey.spd0;
-       end
-        
-        % Prey behavior -------------------------------------------
-        
-        % Routine swimming 
-        if ~escapeOn 
-            [omegaPrey, t_PreySccd, dir_PreySccd, on_PreySccd] = prey_routine(...
-                     xCollPred, yCollPred, thetaPred, p.prey, t_PreySccd, t, ...
-                     dir_PreySccd, on_PreySccd, p.tank_rad, 'prey');
         end
+        
+        % PREY BEHAVIOR ---------------------------------------------------
         
         % Escape response
         
-        % Check if in an escape response and within 4 x capture distance
+        % Check if in an escape response AND within 4 x capture distance
         if ~escapeOn && (dist < 4*p.both.d_capture)
 
             % Indicate that we are in an escape response
@@ -249,11 +261,13 @@ dirEsc = 1;
             [omegaPrey, spdPrey] = prey_escape(t, stimTime,...
                                                p.prey, 0, 0, dirEsc);
         else
-            omegaPrey = 0;
+            [omegaPrey, t_PreySccd, dir_PreySccd, on_PreySccd] = ...
+                foraging(xCollPrey, yCollPrey, thetaPrey, p.prey,... 
+                t_PreySccd, t, dir_PreySccd, on_PreySccd, p.tank_rad, 'prey');
         end 
         
 
-        % Predator behavior ----------------------------------------
+        % PREDATOR BEHAVIOR -----------------------------------------------
         
         % Determine whether prey is detected
         if ~seePrey
@@ -262,19 +276,15 @@ dirEsc = 1;
 
         
         if 1 
-            [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = foraging(...
-                     xCollPred, yCollPred, thetaPred, p.pred, t_PredSccd, t, ...
-                     dir_PredSccd, on_PredSccd, p.tank_rad, 'predator');
+            [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = ...
+                foraging(xCollPred, yCollPred, thetaPred, p.pred,...
+                t_PredSccd, t, dir_PredSccd, on_PredSccd, p.tank_rad, 'predator');
 %         else
 %             [spdPred,OmegaPred] = strike(xPred,yPred,thetaPred,...
 %                 xPrey,yPrey,thetaPrey);
 %             %TODO: create this m-file
         end
-        
-        % Yaw rate of prey
-%         omegaPrey = 0;
-        
-        
+       
     
         % OUTPUTS --------------------------------------------------------- 
         
@@ -284,19 +294,18 @@ dirEsc = 1;
         
         % Prey rate of rotation
         dX(3,1) = omegaPrey;
-        
+       
         % Predator velocity in x & y directions
         dX(4,1) = spdPred * cos(thetaPred);
         dX(5,1) = spdPred * sin(thetaPred);
         
         % Predator rate of rotation 
         dX(6,1) = omegaPred;
-        
     end
 end
 
 
-% capture function: use with 'Event' option in ode45
+%% CAPTURE FUNCTION: use with 'Event' option in ode45 ----------------------
 function [value, isterminal, direction] = capture_fnc(~,X)
     % the event occurs when distance is less than capture distance
     distance = hypot(X(4)-X(1),X(5)-X(2));
@@ -310,8 +319,5 @@ function [value, isterminal, direction] = capture_fnc(~,X)
         direction  = 0;
    end
 end
-
-
-
 
 end

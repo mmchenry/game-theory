@@ -1,11 +1,11 @@
 function [omega, t_sccd, dirSccd, onSccd] = ...
-               foraging(xBod,yBod,theta, pred, t_sccd, t, dirSccd, ...
+               foraging(xBod,yBod,theta, param, t_sccd, t, dirSccd, ...
                              onSccd, tank_rad, player)
 % Describes instantaneous routine foraging behavior 
 %
 % x       - x-position of body (nx1)
 % y       - y-position of body (nx1)
-% theta   - Body orientation of predator (1x1)
+% theta   - Body orientation of predator (or prey) (1x1)
 % pred    - Structure of predator (or prey) parameters
 % t_sccd  - Time of start of last saccade (i.e. turn) (1x1)
 % t       - Current time (1x1, can be vector for testing)
@@ -17,7 +17,7 @@ function [omega, t_sccd, dirSccd, onSccd] = ...
 % 
 % omega  - rate of body rotation
 
-gain = 20;
+%gain = 20;
 
 % Max distance of body from origin
 body_dist = max(hypot(xBod, yBod));
@@ -54,7 +54,7 @@ if body_dist >= tank_rad
     dev_ang = (tan_ang - theta) / pi;
     
     % Make omega proportional to deviation
-    omega = dev_ang * pred.sccd_omega * gain;
+    omega = dev_ang * param.wall_omega;
     
     % Set saccade start to current time
     t_sccd = t;
@@ -70,7 +70,7 @@ elseif onSccd
     tc = t - t_sccd;
     
     % If this time has exceeded saccade period . . .
-    if tc > pred.sccd_prd
+    if tc > param.sccd_prd
         
         % Turn off logical
         onSccd = 0;
@@ -85,7 +85,7 @@ elseif onSccd
     else    
         
         % Define current rate of turn
-        omega = saccade_func(tc,pred.sccd_omega,pred.sccd_prd,dirSccd);   
+        omega = saccade_func(tc,param.sccd_omega,param.sccd_prd,dirSccd);   
         
     end
        
@@ -93,7 +93,7 @@ elseif onSccd
 else
     
     % Next saccade time (useful for some code below)
-    t_next = t_sccd + pred.sccd_intvl;
+    t_next = t_sccd + param.sccd_intvl;
 
     % If current time exceeds the next scheduled saccade . . .
     if t >= t_next
@@ -105,7 +105,7 @@ else
         onSccd = 1;
         
         % Define current rate of turn
-        omega = saccade_func(t-t_next,pred.sccd_omega,pred.sccd_prd,dirSccd); 
+        omega = saccade_func(t-t_next,param.sccd_omega,param.sccd_prd,dirSccd); 
     
     % Otherwise, we are between saccades . . .
     else            

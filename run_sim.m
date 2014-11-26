@@ -4,12 +4,37 @@ function run_sim
 
 %% Prey parameters
 
-prey.spd0           = 0;         % m/s          
+prey.spd0           = .2e-2;    % m/s          
 prey.x0             = 1e-2;      % m          
 prey.y0             = 1e-2;      % m          
 prey.theta0         = 45/180*pi; % rad            
-prey.spdEscape      = 5e-2;      % m/s  
+prey.spdEscape      = 10e-2;      % m/s  
+prey.omegaEscape    = 35;        % rad/s
+prey.spdResp        = 2e-2;      % m/s
+prey.latEscape      = 4e-3;      % s
+prey.durEscape      = 40e-3;     % s
 
+% Width of head
+prey.body_width         = 4.0e-6;    % m
+
+% Length of head
+prey.head_length        = 3.75e-6;    % m
+
+% Interval between start of saccades
+prey.saccade_interval   = 5;         % s
+
+% Duration of a saccade
+prey.saccade_period     = 0.25;       % s
+
+% Peak rate of rotation during saccade
+prey.saccade_omega      = 4;         % rad/s
+
+% Peak rate of rotation encounter with wall
+prey.wall_omega         = 40;         % rad/s
+
+% Proportion region beyond head for responding to walls
+prey.fieldSize          = 2;        % Dimensionless
+  
 
 %% Predator parameters
 
@@ -57,7 +82,7 @@ param.d_capture     = 5e-3  ;    % m
 param.dist_thresh   = 1e-2;      % m
 
 % Time span for simulation
-param.t_span        = [0 60];     % s
+param.t_span        = [0 250];     % s
 
 % Tank dimension
 param.tank_radius   = 10e-2;     % m
@@ -79,4 +104,12 @@ vis_results(R,'Turning data')
 
 figure;
 vis_results(R,'Trajectories')
+
+% Display whether or not prey escaped
+if isempty(R.tEnd)
+    disp('prey successfully escaped')
+else
+    disp(['the prey was captured at time = ' num2str(R.tEnd)])
+end
+
 
