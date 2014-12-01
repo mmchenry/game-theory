@@ -1,6 +1,5 @@
 function [omega, t_sccd, dirSccd, onSccd] = ...
-               foraging(xBod,yBod,theta, pred, t_sccd, t, dirSccd, ...
-                             onSccd, tank_rad, player)
+               foraging(pred, t_sccd, t, dirSccd, onSccd)
 % Describes instantaneous routine foraging behavior 
 %
 % x       - x-position of body (nx1)
@@ -11,60 +10,58 @@ function [omega, t_sccd, dirSccd, onSccd] = ...
 % t       - Current time (1x1, can be vector for testing)
 % dirSccd - Saccade direction (1 or -1)
 % onSccd  - Currently executing a saccade (logical)
-% xTank   - x coordinates of tank wall (nx1)
-% yTank   - y coordinates of tank wall (nx1)
 % player  - Either 'predator' or 'prey'
 % 
 % omega  - rate of body rotation
 
 %gain = 20;
 
-% Max distance of body from origin
-body_dist = max(hypot(xBod, yBod));
+% % Max distance of body from origin
+%body_dist = max(hypot(xBod, yBod));
 
 % Tank radius
 %tank_rad = max(hypot(xTank, yTank));
 
-% If bumped into to a wall . . .
-if body_dist >= tank_rad
+% % If bumped into to a wall . . .
+% if body_dist >= tank_rad
+%     
+%     % Index of points that exceed the boundary
+%     idx = hypot(xBod,yBod) > tank_rad;
+%     
+%     % Body points outside
+%     xOut    = xBod(idx);
+%     yOut    = yBod(idx);
+%     
+%     % Find distances for all head points to all tank points
+%     dist = hypot(xOut,yOut);
+%     
+%     % Find furthest distance
+%     iMax = find(dist==max(dist(:)),1,'first');
+%     
+%     % Angle of that furthest point
+%     ang_max = atan2(yOut(iMax),xOut(iMax));
+%     
+%     % Direction of turn
+%     turn_dir = (theta - ang_max) ./ norm(theta - ang_max);
+%     
+%     % Tangent along wall
+%     tan_ang = ang_max + turn_dir*(pi/2 + 15/180*pi);
+%     
+%     % Normalized deviation from tangent
+%     dev_ang = (tan_ang - theta) / pi;
+%     
+%     % Make omega proportional to deviation
+%     omega = dev_ang * pred.wall_omega;
+%     
+%     % Set saccade start to current time
+%     t_sccd = t;
+%     
+%     % Turn off routine saccades
+%     onSccd = 0;
+%    
     
-    % Index of points that exceed the boundary
-    idx = hypot(xBod,yBod) > tank_rad;
-    
-    % Body points outside
-    xOut    = xBod(idx);
-    yOut    = yBod(idx);
-    
-    % Find distances for all head points to all tank points
-    dist = hypot(xOut,yOut);
-    
-    % Find furthest distance
-    iMax = find(dist==max(dist(:)),1,'first');
-    
-    % Angle of that furthest point
-    ang_max = atan2(yOut(iMax),xOut(iMax));
-    
-    % Direction of turn
-    turn_dir = (theta - ang_max) ./ norm(theta - ang_max);
-    
-    % Tangent along wall
-    tan_ang = ang_max + turn_dir*(pi/2 + 15/180*pi);
-    
-    % Normalized deviation from tangent
-    dev_ang = (tan_ang - theta) / pi;
-    
-    % Make omega proportional to deviation
-    omega = dev_ang * pred.wall_omega;
-    
-    % Set saccade start to current time
-    t_sccd = t;
-    
-    % Turn off routine saccades
-    onSccd = 0;
-   
-    
-% If currently executing a saccade (and not bumping a wall) . . .
-elseif onSccd
+% If currently executing a saccade  . . .
+if onSccd
       
     % Calculated time within the saccade
     tc = t - t_sccd;
@@ -89,7 +86,7 @@ elseif onSccd
         
     end
        
-% If not already executing a saccade (& not near a wall). . .
+% If not already executing a saccade . . .
 else
     
     % Next saccade time (useful for some code below)

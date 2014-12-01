@@ -3,13 +3,22 @@ function [xRT,yRT] = coord_trans(type,theta,origin,x,y,verg_ang,vis_az,eye_side)
 %
 % type      - String indicating the kind of transformation to perform
 % theta     - Orientation of the FOR (1x1)
-% origin    - Coordinates of origin of coordinate system (1x3)
+% origin    - Coordinates of origin of coordinate system (1x2)
 % x         - vector of x-coordinates to transform (nx1)
 % y         - vector of y-coordinates to transform (nx1)
 % verg_ang  - vergence angle of the eyes in radians (1x1)
 % vis_az    - Azimuth of the field of view in radians (1x1)
 % eye_side  - String indicating which eye ('right' or 'left')
 
+
+% Check coordinate dimensions
+if (size(x,2)~=1) || (size(y,2)~=1)
+    error('Coordinates must be given as a column vector');
+end
+
+if size(origin,2)~=2
+    error('Origin must be given as a row vector');
+end
 
 switch type
     
