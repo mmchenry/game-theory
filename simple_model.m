@@ -1,12 +1,15 @@
 function R = simple_model(pred,prey,param)
-% ODE Predator-prey interaction model
+% ODE Predator-prey interaction model (no longer so "simple")
 
 
 %% Parameters
 
 % Scaling constants (helps the solver avoid crazy numbers)
-sL = pred.head_length * 4;      % m
+sL = pred.bod_len;              % m
 sT = pred.saccade_interval / 4; % s
+
+% Number of points used to render the periphery of fish bodies
+num_bod_pts = 200;
 
 
 %% Normalize input data
@@ -24,9 +27,10 @@ p.prey.spdResp      = prey.spdResp          ./sL .* sT;
 p.prey.lat          = prey.latEscape        ./sT;
 p.prey.durEscape    = prey.durEscape        ./sT;
 
-% Dimensions of head
-p.prey.w            = prey.body_width       ./sL;
-p.prey.L            = prey.head_length      ./sL;
+% Morphometrics
+p.prey.bod_width    = prey.bod_width        ./sL;
+p.prey.bod_len      = prey.bod_len          ./sL;
+p.prey.COM_len      = prey.COM_len          ./sL;
 
 % Kinematic parameters
 p.prey.spd0         = prey.spd0             ./sL .* sT;
@@ -36,7 +40,7 @@ p.prey.sccd_omega   = prey.saccade_omega    .* sT;
 p.prey.wall_omega   = prey.wall_omega       .* sT;
 
 % Sensory parameters
-p.prey.fldSize      = prey.fieldSize;
+p.prey.fieldSize      = prey.fieldSize       ./sL;
 
 
 % PREDATOR ----------------------------------------------------------------
@@ -45,37 +49,46 @@ p.pred.x0           = pred.x0               ./sL;
 p.pred.y0           = pred.y0               ./sL;
 p.pred.theta0       = pred.theta0;
 
-% Dimensions of head
-p.pred.w            = pred.body_width       ./sL;
-p.pred.L            = pred.head_length      ./sL;
+% Morphometrics
+p.pred.bod_width       = pred.bod_width     ./sL;
+p.pred.bod_len         = pred.bod_len       ./sL;
+p.pred.COM_len         = pred.COM_len       ./sL;
 
 % Kinematic parameters
-p.pred.spd0         = pred.spd0             ./sL .* sT;
-p.pred.sccd_prd     = pred.saccade_period   ./ sT;
-p.pred.sccd_intvl   = pred.saccade_interval ./ sT;
-p.pred.sccd_omega   = pred.saccade_omega    .* sT;
-p.pred.wall_omega   = pred.wall_omega       .* sT;
+p.pred.spd0                 = pred.spd0             ./sL .* sT;
+p.pred.sccd_prd             = pred.saccade_period   ./ sT;
+p.pred.sccd_intvl           = pred.saccade_interval ./ sT;
+p.pred.sccd_omega           = pred.saccade_omega    .* sT;
+p.pred.wall_omega           = pred.wall_omega       .* sT;
 
 % Sensory parameters
-p.pred.fldSize      = pred.fieldSize;
+p.pred.fieldSize    = pred.fieldSize ./sL ;
 p.pred.vis_az       = pred.vis_az;
 p.pred.verg_ang     = pred.verg_ang;
+p.pred.rtnl_den     = pred.rtnl_den;
+p.pred.vis_freq     = pred.vis_freq .* sT;
+p.pred.vis_thresh   = pred.vis_thresh;
 
 
-% INTERACTION -------------------------------------------------------------
-p.both.dist_thresh  = param.dist_thresh     ./sL; 
-p.both.d_capture    = param.d_capture       ./sL;
+% GENERAL -----------------------------------------------------------------
+p.param.dist_thresh     = param.dist_thresh     ./sL; 
+p.param.d_capture       = param.d_capture       ./sL;
+p.param.tank_radius     = param.tank_radius     ./sL;
 
 
 % SOLVER ------------------------------------------------------------------
 p.t_span            = param.t_span          ./sT;
-p.tank_rad          = param.tank_radius     ./sL;
+p.rel_tol           = param.rel_tol;
+p.abs_tol           = param.abs_tol;
+
+clear pred prey param
 
 
 %% Configure solver
 
 % Solver options
-options  = odeset('RelTol',1e-3,...
+options  = odeset('RelTol',p.rel_tol,...
+                  'AbsTol',p.abs_tol, ...
                   'Events',@capture_fnc, ...
                   'MaxStep',p.pred.sccd_prd/2);
               
@@ -97,12 +110,10 @@ R.xPred         = X(:,4)    .* sL;
 R.yPred         = X(:,5)    .* sL;
 R.thetaPred     = X(:,6);
 
-% Store input parameters
-R.pred   = pred;
-R.prey   = prey;
-R.param  = param;
+% Store scaling parameters
+R.sT     = sT;
+R.sL     = sL;
 
-% clear X t t_event
 
 %% Solver
 
@@ -128,8 +139,8 @@ dir_PredSccd = (dir_PredSccd-.5)./abs(dir_PredSccd-.5);
 % Whether currently executing a saccade
 on_PredSccd = 0;
 
-% Whether predator is currently tracking a prey
-seePrey = 0;
+% Time when prey enters predator's FOV
+inFieldTimePred = nan;
 
 % PREY ROUTINE SWIMMING PARAMETERS ----------------------------------------
 
@@ -145,25 +156,24 @@ on_PreySccd = 0;
 
 % POINTS FOR TANK, PREY & PREDATOR HEAD -----------------------------------
 
-% Points describing boundary of tank (global FOR)
-theta = [linspace(0,2*pi,1000)]';
-xTank = p.tank_rad .* cos(theta);
-yTank = p.tank_rad .* sin(theta);
-clear theta
+% % Points describing boundary of tank (global FOR)
+% theta = [linspace(0,2*pi,1000)]';
+% xTank = p.tank_rad .* cos(theta);
+% yTank = p.tank_rad .* sin(theta);
+% clear theta
+% Angular location of target for predator (global FOR) 
+thetaTargetPred = nan;
 
-% Points describing predator head (local FOR)
-angHead    = [linspace(-pi/2, pi/2, 500)]';
-xHeadPredL = p.pred.L    .* cos(angHead) - p.pred.L;
-yHeadPredL = (p.pred.w/2) .* sin(angHead);
+% Visual appearence of predator body
+[xBodPredL, yBodPredL] = give_coord('body coordinates',p.pred,num_bod_pts);
 
-% Points describing predator head (local FOR)
-xCollPredL = p.pred.fldSize*p.pred.L    .* cos(angHead) - p.pred.L;
-yCollPredL = p.pred.fldSize*(p.pred.w/2) .* sin(angHead);
+% Visual appearence of prey body
+[xBodPreyL, yBodPreyL] = give_coord('body coordinates',p.prey,num_bod_pts);
 
-% Points describing prey head (local FOR)
-angHead    = [linspace(-pi/2, pi/2, 500)]';
-xCollPreyL = p.prey.fldSize*p.prey.L    .* cos(angHead) - p.prey.L;
-yCollPreyL = p.prey.fldSize*(p.prey.w/2) .* sin(angHead);
+% % Points describing prey head (local FOR)
+% angHead    = [linspace(-pi/2, pi/2, 500)]';
+% xCollPreyL = p.prey.fldSize*p.prey.L    .* cos(angHead) - p.prey.L;
+% yCollPreyL = p.prey.fldSize*(p.prey.w/2) .* sin(angHead);
 
 % PARAMETERS USEFUL FOR PREY ESCAPE ---------------------------------------
 
@@ -176,6 +186,11 @@ stimTime = nan;
 % Set initial direction of escape 
 dirEsc = 1;
 
+
+% Visual check
+%plot(xBodPredL,yBodPredL,'.-',xFieldPredL,yFieldPredL,'.-');axis equal
+%plot(xBodPreyL,yBodPreyL,'.-');axis equal
+
 % Runge-Kutta solver
 [t,X,t_event] = ode45(@gov_eqn,p.t_span,X0,options);
 
@@ -185,15 +200,15 @@ dirEsc = 1;
         %  INPUTS ---------------------------------------------------------
         
         % Prey position
-        xPrey = X(1);
-        yPrey = X(2);
+        xPrey      = X(1);
+        yPrey      = X(2);
         
         % Prey orientation
         thetaPrey  = X(3);
         
         % Predator position
-        xPred = X(4);
-        yPred = X(5);
+        xPred      = X(4);
+        yPred      = X(5);
 
         % Predator orientation
         thetaPred  = X(6);
@@ -203,86 +218,185 @@ dirEsc = 1;
         dist = hypot(xPred-xPrey,yPred-yPrey);
 
         % DECISIONS ABOUT RATES OF CHANGE ---------------------------------
-                        
-        % Transform head points of predator into global FOR                 
-        [xHead, yHead] = coord_trans('body to global', ...
-                      thetaPred, [xPred yPred], xHeadPredL, yHeadPredL);   
+                         
                             
-        % Transform region outside of head points of predator into global FOR                    
-        [xCollPred, yCollPred] = coord_trans('body to global', ...
-                      thetaPred, [xPred yPred], xCollPredL, yCollPredL); 
-        
-        % Transform region outside of head points of prey into global FOR                    
-        [xCollPrey, yCollPrey] = coord_trans('body to global', ...
-                      thetaPrey, [xPrey yPrey], xCollPreyL, yCollPreyL);                  
+%        % Transform region outside of head points of predator into global FOR                    
+%        [xCollPred, yCollPred] = coord_trans('body to global', ...
+%                      thetaPred, [xPred yPred], xCollPredL, yCollPredL); 
+%        
+%        % Transform region outside of head points of prey into global FOR                    
+%        [xCollPrey, yCollPrey] = coord_trans('body to global', ...
+%                      thetaPrey, [xPrey yPrey], xCollPreyL, yCollPreyL);                  
 
+        % Transform field points of predator into global FOR                    
+        %[xFieldPredG, yFieldPredG] = coord_trans('body to global', ...
+        %               thetaPred, [xPred yPred], xFieldPredL, yFieldPredL); 
+                  
+        % Transform body points of predator into global FOR             
+        [xBodPredG, yBodPredG] = coord_trans('body to global', ...
+                       thetaPred, [xPred yPred], xBodPredL, yBodPredL); 
+        
+        % Transform body points of prey into global FOR             
+        [xBodPreyG, yBodPreyG] = coord_trans('body to global', ...
+                       thetaPrey, [xPrey yPrey], xBodPreyL, yBodPreyL); 
         
         % Predator speed (fixed)
         spdPred = p.pred.spd0;
         
        % Prey speed         
-        if dist < p.both.dist_thresh
-            spdPrey = p.prey.spdResp;
-        else
+%         if dist < p.param.dist_thresh
+%             spdPrey = p.prey.spd0;
+%         else
             spdPrey = p.prey.spd0;
-        end
+%         end
         
         % PREY BEHAVIOR ---------------------------------------------------
+        % Max distance of body from origin
+        body_dist_prey = max(hypot(xPrey, yPrey));        
         
-        % Escape response
-        
-        % Check if in an escape response AND within 4 x capture distance
-        if ~escapeOn && (dist < 4*p.both.d_capture)
-
-            % Indicate that we are in an escape response
-            escapeOn = 1;
+        % If wall is within sensory field  (trumps other behaviors) . . .
+        if body_dist_prey > (p.param.tank_radius - p.prey.fieldSize)
             
-            % Note the time of its start
-            stimTime = t;
+            % Angular position of prey
+            prey_ang = atan2(yPrey,xPrey);
             
-            % Set escape response direction 
-            dirEsc = rand(1);
-            dirEsc = (dirEsc-.5)./abs(dirEsc-.5);
-
-            % Determine speed of rotation of escape 
-            % normrnd(m,s) returns rndm # from norm dist. w/ mean=m,stdev=s
-            rotSpdEscape = normrnd(p.prey.rotSpdEscape/sT, 1.5);
-            p.prey.rotSpdEscape = rotSpdEscape .* sT;
-        end
-        
-        % If we are beyond the escape duration . . .
-        if escapeOn && ((t-stimTime-p.prey.lat) > p.prey.durEscape)
-            escapeOn = 0;
-        end
-        
-        % If we are within the period of an escape . . .          
-        if escapeOn 
-            %stimTime
-            [omegaPrey, spdPrey] = prey_escape(t, stimTime,...
-                                               p.prey, 0, 0, dirEsc);
+            % Wall point
+            xWallG = p.param.tank_radius * cos(prey_ang);
+            yWallG = p.param.tank_radius * sin(prey_ang);
+            
+            % Local coordinates of wall
+            [xWallL,yWallL] = coord_trans('global to body', thetaPrey, ...
+                                [xPrey yPrey], xWallG, yWallG);
+             
+            % Turn direction (away from wall point)
+            turn_dir = - atan2(yWallL,xWallL) / norm(atan2(yWallL,xWallL));
+            
+            % Intensity of rotation 
+            turn_strength = (pi - abs(atan2(yWallL,xWallL)) + 0*pi*45/180) / pi;
+            
+            % Rate of turning, a function of angle to wall
+            omegaPrey = turn_dir * turn_strength * p.prey.wall_omega;
+            
+            % Disable targeting mode
+            thetaTargetPred = nan;
+            inFieldTimePred = nan;
+            
+            % Reset saccade parameters
+            t_PreySccd      = t;
+            on_PreySccd     = 0;
+            
+            clear xWallG yWallG xWallL yWallL turn_dir turn_strength 
+     
         else
-            [omegaPrey, t_PreySccd, dir_PreySccd, on_PreySccd] = ...
-                foraging(xCollPrey, yCollPrey, thetaPrey, p.prey,... 
-                t_PreySccd, t, dir_PreySccd, on_PreySccd, p.tank_rad, 'prey');
-        end 
+            % Escape response
+            % If in an escape response AND within 4 x capture distance
+            if ~escapeOn && (dist < 4*p.param.d_capture)
+                
+                % Indicate that we are in an escape response
+                escapeOn = 1;
+                
+                % Note the time of its start
+                stimTime = t;
+                
+                % Set escape response direction
+                dirEsc = rand(1);
+                dirEsc = (dirEsc-.5)./abs(dirEsc-.5);
+                
+                % Determine speed of rotation of escape
+                % normrnd(m,s) returns rndm # from norm dist. w/ mean=m,stdev=s
+                rotSpdEscape = normrnd(p.prey.rotSpdEscape/sT, 1.5);
+                p.prey.rotSpdEscape = rotSpdEscape .* sT;
+            end
+            
+            % If we are beyond the escape duration . . .
+            if escapeOn && ((t-stimTime-p.prey.lat) > p.prey.durEscape)
+                escapeOn = 0;
+            end
+            
+            % If we are within the period of an escape . . .
+            if escapeOn
+                %stimTime
+                [omegaPrey, spdPrey] = prey_escape(t, stimTime,...
+                    p.prey, 0, 0, dirEsc);
+            else
+                [omegaPrey, t_PreySccd, dir_PreySccd, on_PreySccd] = ...
+                    foraging(p.prey,t_PreySccd, t, dir_PreySccd,...
+                    on_PreySccd);
+            end
+        end
         
 
         % PREDATOR BEHAVIOR -----------------------------------------------
         
-        % Determine whether prey is detected
-        if ~seePrey
-            %seePrey = find_prey(xPrey, yPrey, thetaPred, xPred, yPred);
-        end
-
+        % Determine whether prey is detected using 'see_fish'
+        [thetaTargetPred, inFieldTimePred] = see_fish(t, [xPred yPred], ...
+                                thetaPred, xBodPreyG, yBodPreyG, p.pred, ...
+                                inFieldTimePred, thetaTargetPred);
         
-        if 1 
-            [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = ...
-                foraging(xCollPred, yCollPred, thetaPred, p.pred,...
-                t_PredSccd, t, dir_PredSccd, on_PredSccd, p.tank_rad, 'predator');
-%         else
-%             [spdPred,OmegaPred] = strike(xPred,yPred,thetaPred,...
-%                 xPrey,yPrey,thetaPrey);
-%             %TODO: create this m-file
+        % Max distance of body from origin
+        body_dist = max(hypot(xPred, yPred));        
+        
+        % If wall is within sensory field  (trumps other behaviors) . . .
+        if body_dist > (p.param.tank_radius - p.pred.fieldSize)
+            
+            % Angular position of predator
+            pred_ang = atan2(yPred,xPred);
+            
+            % Wall point
+            xWallG = p.param.tank_radius * cos(pred_ang);
+            yWallG = p.param.tank_radius * sin(pred_ang);
+            
+            % Local coordinates of wall
+            [xWallL,yWallL] = coord_trans('global to body', thetaPred, ...
+                                [xPred yPred], xWallG, yWallG);
+             
+            % Turn direction (away from wall point)
+            turn_dir = - atan2(yWallL,xWallL) / norm(atan2(yWallL,xWallL));
+            
+            % Intensity of rotation 
+            turn_strength = (pi - abs(atan2(yWallL,xWallL)) + 0*pi*45/180) / pi;
+            
+            % Rate of turning, a function of angle to wall
+            omegaPred = turn_dir * turn_strength * p.pred.wall_omega;
+            
+            % Disable targeting mode
+            thetaTargetPred = nan;
+            inFieldTimePred = nan;
+            
+            % Reset saccade parameters
+            t_PredSccd      = t;
+            on_PredSccd     = 0;
+            
+            clear xWallG yWallG xWallL yWallL turn_dir turn_strength 
+                            
+            
+        % If prey visible (i.e. thetaTargetPred is not a nan) . . .
+        elseif ~isnan(thetaTargetPred)
+            
+            % Normalized deviation
+            norm_dev = (thetaTargetPred-thetaPred)/pi;
+            
+            % TARGETED SWIMMING: Adjust direction of predator, according
+            % to diretcion of prey
+            omegaPred = norm_dev * p.pred.wall_omega;
+            
+            % TODO: Add strike code 
+            
+            % Reset saccade parameters
+            t_PredSccd      = t;
+            on_PredSccd     = 0;
+            
+            % Clear parameters
+            clear norm_dev
+          
+            
+        % If prey not visible . . .
+        else
+            
+            % Operate according to rules of foraging
+            [omegaPred, t_PredSccd, dir_PredSccd, on_PredSccd] = foraging(...
+                     p.pred, t_PredSccd, t, dir_PredSccd, on_PredSccd);
+
         end
        
     
@@ -309,7 +423,7 @@ end
 function [value, isterminal, direction] = capture_fnc(~,X)
     % the event occurs when distance is less than capture distance
     distance = hypot(X(4)-X(1),X(5)-X(2));
-    if distance < p.both.d_capture
+    if distance < p.param.d_capture
         value      = 0;
         isterminal = 1;         % tells ode45 to stop integration
         direction  = 0;
@@ -319,5 +433,22 @@ function [value, isterminal, direction] = capture_fnc(~,X)
         direction  = 0;
    end
 end
+
+
+
+% function [x,y] = coord_pred_field(p,num_pts)
+% % Coordinates describing the sensory field of the predator
+% 
+% % Number of points to render each part of the body
+% num1 = round(num_pts.*(p.COM_len/p.bod_len));
+% 
+% % Angular position
+% ang1        = linspace(-pi/2,pi/2,num1)';
+% 
+% % Coordinates
+% x   = p.fldSize.*([p.COM_len.*cos(ang1)])-p.COM_len;
+% y   = p.fldSize.*([(p.bod_width/2).*sin(ang1)]);
+% 
+% end
 
 end
