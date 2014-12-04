@@ -97,8 +97,20 @@ pred.bod_len            = 2e-2;      % m
 % Position of COM
 pred.COM_len        = pred.bod_len/4; % m 
 
-% Proportion region beyond head for sensing walls
+% Distance for sensing walls
 pred.fieldSize       = pred.bod_width * 3;  % m
+
+% Distance from prey for initiating a strike
+pred.strike_thresh  = 1e-2;  % m
+
+% Strike duration
+pred.strike_dur     = 30e-3; % s
+
+% Maximum distance of capture
+pred.strike_reach   = 5e-3;  % m
+
+% Angular spread of capture area
+pred.strike_range   = pi/2;  % rad
 
 % Receptive field of visual system (rad). Easter (1996) gives the functional 
 % retinal field of 163 deg for 4 dpf. Though I give an additional 20 deg
