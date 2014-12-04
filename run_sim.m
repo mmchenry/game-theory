@@ -48,6 +48,7 @@ prey.durEscape      = 40e-3;      % s
 prey.bod_len        = 3.5e-3;           % m
 prey.bod_width      = 0.5e-3;           % m
 prey.COM_len        = prey.bod_len/4;   % m
+prey.numBodPts      = 200;
 
 % Length of head
 prey.head_length        = 3.75e-6;    % m
@@ -93,6 +94,7 @@ pred.wall_omega         = 10;         % rad/s
 % Width of head
 pred.bod_width          = 0.3e-2;    % m
 pred.bod_len            = 2e-2;      % m
+pred.numBodPts          = prey.numBodPts;
 
 % Position of COM
 pred.COM_len        = pred.bod_len/4; % m 
@@ -154,8 +156,8 @@ R.prey      = prey;
 figure;
 vis_results('Trajectories',R)
 
-figure('DoubleBuffer','on')
-vis_results('Animate',R)
+%figure('DoubleBuffer','on')
+%vis_results('Animate',R)
 
 % Display whether or not prey escaped
 if isempty(R.tEnd)
