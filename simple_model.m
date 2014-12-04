@@ -1,122 +1,48 @@
-function R = simple_model(pred,prey,param)
+function R = simple_model(pIn,d)
 % ODE Predator-prey interaction model (no longer so "simple")
 
 
 %% Parameters
 
-% Scaling constants (helps the solver avoid crazy numbers)
-sL = pred.bod_len;              % m
-sT = pred.saccade_interval / 4; % s
+% Scaling constants
+sT = pIn.param.sT;
+sL = pIn.param.sL;
 
-
-%% Normalize input data
-
-% PREY --------------------------------------------------------------------
-% Initial body position & orientation 
-p.prey.x0           = prey.x0               ./sL;
-p.prey.y0           = prey.y0               ./sL;
-p.prey.theta0       = prey.theta0;
-
-% Prey escape parameters
-p.prey.spdEscape    = prey.spdEscape        ./sL .* sT;
-p.prey.rotSpdEscape = prey.omegaEscape           .* sT;
-p.prey.spdResp      = prey.spdResp          ./sL .* sT;
-p.prey.lat          = prey.latEscape        ./sT;
-p.prey.durEscape    = prey.durEscape        ./sT;
-
-% Morphometrics
-p.prey.bod_width    = prey.bod_width        ./sL;
-p.prey.bod_len      = prey.bod_len          ./sL;
-p.prey.COM_len      = prey.COM_len          ./sL;
-p.prey.numBodPts    = prey.numBodPts;
-
-% Kinematic parameters
-p.prey.spd0         = prey.spd0             ./sL .* sT;
-p.prey.sccd_prd     = prey.saccade_period   ./ sT;
-p.prey.sccd_intvl   = prey.saccade_interval ./ sT;
-p.prey.sccd_omega   = prey.saccade_omega    .* sT;
-p.prey.wall_omega   = prey.wall_omega       .* sT;
-
-% Sensory parameters
-p.prey.fieldSize      = prey.fieldSize       ./sL;
-
-
-% PREDATOR ----------------------------------------------------------------
-% Initial body position & orientation 
-p.pred.x0           = pred.x0               ./sL;
-p.pred.y0           = pred.y0               ./sL;
-p.pred.theta0       = pred.theta0;
-
-% Morphometrics
-p.pred.bod_width       = pred.bod_width     ./sL;
-p.pred.bod_len         = pred.bod_len       ./sL;
-p.pred.COM_len         = pred.COM_len       ./sL;
-p.pred.numBodPts       = pred.numBodPts;
-
-% Kinematic parameters
-p.pred.spd0                 = pred.spd0             ./sL .* sT;
-p.pred.sccd_prd             = pred.saccade_period   ./ sT;
-p.pred.sccd_intvl           = pred.saccade_interval ./ sT;
-p.pred.sccd_omega           = pred.saccade_omega    .* sT;
-p.pred.wall_omega           = pred.wall_omega       .* sT;
-
-% Sensory parameters
-p.pred.fieldSize    = pred.fieldSize  ./sL ;
-p.pred.vis_az       = pred.vis_az;
-p.pred.verg_ang     = pred.verg_ang;
-p.pred.rtnl_den     = pred.rtnl_den;
-p.pred.vis_freq     = pred.vis_freq   .*sT;
-p.pred.vis_thresh   = pred.vis_thresh;
-
-% Strike parameters
-p.pred.strike_thresh   = pred.strike_thresh ./ sL;
-p.pred.strike_dur      = pred.strike_dur    ./ sT;
-p.pred.strike_reach    = pred.strike_reach  ./ sL;
-p.pred.strike_range    = pred.strike_range;
-
-% GENERAL -----------------------------------------------------------------
-p.param.dist_thresh     = param.dist_thresh     ./sL; 
-p.param.d_capture       = param.d_capture       ./sL;
-p.param.tank_radius     = param.tank_radius     ./sL;
-
-
-% SOLVER ------------------------------------------------------------------
-p.t_span            = param.t_span          ./sT;
-p.rel_tol           = param.rel_tol;
-p.abs_tol           = param.abs_tol;
-
-clear pred prey param
+% Convert parameter values, according to scaling constants
+p = convert_params(pIn,d);
 
 
 %% Configure solver
 
 % Solver options
-options  = odeset('RelTol',p.rel_tol,...
-                  'AbsTol',p.abs_tol, ...
+options  = odeset('RelTol',p.param.rel_tol,...
+                  'AbsTol',p.param.abs_tol, ...
                   'Events',@capture_fnc, ...
                   'MaxStep',p.pred.sccd_prd/2);
+                          
               
-                         
 %% Solve & save results in SI units
-
 
 % Run solver
 [t,X,t_event] = solver(p,options);
 
 % Results stored in SI units 
-R.t = t .* sT;
-R.tEnd = t_event .* sT;
+R.t             = t         .* sT;
+R.X(:,1)        = X(:,1)    .* sL;
+R.X(:,2)        = X(:,2)    .* sL;
+R.X(:,3)        = X(:,3);
+R.X(:,4)        = X(:,4)    .* sL;
+R.X(:,5)        = X(:,5)    .* sL;
+R.X(:,6)        = X(:,6);
 
+% Same data, with field names
+R.tEnd          = t_event   .* sT;
 R.xPrey         = X(:,1)    .* sL;
 R.yPrey         = X(:,2)    .* sL;
 R.thetaPrey     = X(:,3);
 R.xPred         = X(:,4)    .* sL;
 R.yPred         = X(:,5)    .* sL;
 R.thetaPred     = X(:,6);
-
-% Store scaling parameters
-R.sT     = sT;
-R.sL     = sL;
 
 
 %% Solver
@@ -138,11 +64,10 @@ captured = 0;
 % Intitialize state variables
 s = give_behavior('Initialize', p);
 
-
 % RUN SOLVER --------------------------------------------------------------
 
 % Runge-Kutta solver
-[t,X,t_event] = ode45(@gov_eqn,p.t_span,X0,options);
+[t,X,t_event] = ode45(@gov_eqn,p.param.t_span,X0,options);
 
     function dX = gov_eqn(t,X)
     % ODE for the dynamics of the system

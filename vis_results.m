@@ -45,7 +45,7 @@ case 'Trajectories'
     phi = linspace(0,2*pi,500);
 
     % Extract wall radius 
-    r = R.param.tank_radius;
+    r = R.p.param.tank_radius;
 
     % Get limits
     xlims(1) = -r * 1.1;

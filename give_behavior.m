@@ -49,7 +49,7 @@ case 'Initialize'
     % PREDATOR FORAGING PARAMETERS --------------------------------------------
     
     % Initial predator saccade time
-    s.pred.tSccd = p.t_span(1);
+    s.pred.tSccd = p.param.t_span(1);
     
     % Initial saccade direction (randomly selected)
     dir_PredSccd = rand(1);
@@ -67,7 +67,7 @@ case 'Initialize'
     % PREY ROUTINE SWIMMING PARAMETERS ----------------------------------------
     
     % Initial prey saccade time
-    s.prey.tSccd = p.t_span(1);
+    s.prey.tSccd = p.param.t_span(1);
     
     % Initial saccade direction (randomly selected)
     dir_PreySccd   = rand(1);
@@ -165,7 +165,7 @@ case 'Prey'
     else
         % Escape response
         % If within an escape response AND within 4 x capture distance
-        if ~s.prey.escapeOn && (dist < 4*p.param.d_capture)
+        if ~s.prey.escapeOn && (dist < p.prey.thrshEscape)
             
             % Indicate that we are in an escape response
             s.prey.escapeOn = 1;
