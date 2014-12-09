@@ -84,11 +84,12 @@ s = give_behavior('Initialize', p);
         s = give_behavior('Predator', p, s, t, X);
         
         % Determine whether prey is captured
-        s = give_behavior('Capture', p, s, t, X);
+        s = give_behavior('Strike', p, s, t, X);
         
         % Update global 'captured' variable
         captured = s.captured;
-
+        
+        %vis_instant(s,p)
         
         % OUTPUTS --------------------------------------------------------- 
         
@@ -130,5 +131,51 @@ function [value, isterminal, direction] = capture_fnc(~,X)
    end
 end
 
+
+function vis_instant(s,p)
+% Look at state of predtaor and prey (for troubleshooting)  
+
+    % Number of points for the wall 
+    num_pts = 200;
+    
+    % Radial coordinates for the wall
+    phi = linspace(0,2*pi,500);
+
+    % Extract wall radius 
+    r = p.param.tank_radius;
+    
+    % Get limits
+    xlims(1) = -r * 1.1;
+    xlims(2) =  r * 1.1;
+    ylims(1) = -r * 1.1;
+    ylims(2) =  r * 1.1;
+
+
+    figure
+    clrs = get(gca,'ColorOrder');
+    
+    % Draw walls
+    h2 = plot(r.*cos(phi),r.*sin(phi),'-k');
+    hold on
+    
+    % Render predator
+    hB(1) = fill(s.pred.xBodG,s.pred.yBodG,clrs(2,:));
+    set(hB(1),'EdgeColor','none')
+
+    % Render prey
+    hB(2) = fill(s.prey.xBodG,s.prey.yBodG,clrs(1,:));
+    set(hB(2),'EdgeColor','none')
+
+    % Render suction field
+    bS = plot(s.pred.xSuc, s.pred.ySuc,'k');
+    
+    % Removed axes
+    set(gca,'Box','off')
+    set(gca,'XColor','w')
+    set(gca,'YColor','w')
+    
+    axis equal
+    hold off
+end
 
 end
