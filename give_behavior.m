@@ -280,11 +280,68 @@ case 'Predator'
     end
 
     
-case 'Capture'    
+case 'Strike'    
+
+% Default values
+s.captured  = 0;
+numSuc      = p.pred.numBodPts/2;
+s.pred.xSuc = zeros(numSuc+2,1);
+s.pred.ySuc = zeros(numSuc+2,1);
+s.pred.rSuc = 0;
+
+% If strike not started & within distance threshold . . .
+if isnan(s.pred.strikeTime) &&  (dist <= p.pred.strike_thresh)
+    % Set strike initiation
+    s.pred.strikeTime = t;
+end
+
+% If strike started . . .
+if ~isnan(s.pred.strikeTime)
     
-    % Determine state of strike
-    [s.pred.strikeTime, s.captured] = pred_strike(t, s.pred.strikeTime, ...
-        [xPred yPred], thetaPred, p.pred, dist, s.prey.xBodG, s.prey.yBodG);
+    % If not finished . . .
+    if t < (s.pred.strikeTime + p.pred.strike_dur)
+        
+        % Parameters for the each function
+        t_c = t - s.pred.strikeTime;
+        dur = p.pred.strike_dur;
+        
+        % Current reach
+        s.pred.rSuc = p.pred.strike_reach .* (0.5.*(sin(2*pi*t_c./dur-pi/2)+1));
+        
+        % Plot local suction zone (local FOR)
+        phi = linspace(-p.pred.strike_range/2, p.pred.strike_range/2, numSuc)';
+        xSucL = [0; s.pred.rSuc.*cos(phi); 0];
+        ySucL = [0; s.pred.rSuc.*sin(phi); 0];
+        
+        % Transform into global FOR
+        [s.pred.xSuc, s.pred.ySuc] = coord_trans('body to global', ...
+                                        thetaPred, [xPred yPred], ...
+                                        xSucL, ySucL);
+        
+        % Coordinates of prey in pred FOR
+        [xPreyPred,yPreyPred] = coord_trans('global to body', ...
+                                    thetaPred, [xPred yPred], ...
+                                    s.prey.xBodG, s.prey.yBodG);
+        
+        % Polar coordinates of prey body in pred FOR
+        [phiPreyPred, rPreyPred] = cart2pol(xPreyPred, yPreyPred);
+        
+        % Index of points in capture zone
+        idx = (rPreyPred < s.pred.rSuc) & ...
+            (phiPreyPred >= -p.pred.strike_range/2) & ...
+            (phiPreyPred <= p.pred.strike_range/2);
+        
+        % Captured, if more than half body in capture zone
+        if sum(idx) > (length(idx)/2)
+            s.captured = 1;
+        end
+        
+    % If beyond duration . . .
+    else
+        % Turn off strike
+        s.pred.strikeTime = nan;
+    end
+end
 
     
 case 'Weihs' 

@@ -1,8 +1,11 @@
 function [p,d] = default_params
+% Default parameter values for the predator, prey, tank, and solver
+
+
 %% General parameters
 
 % Tank dimension
-p.param.tank_radius       = 10e-2;     % m
+p.param.tank_radius     = 10e-2;     % m
 d.param.tank_radius     = 'L';
 
 
@@ -13,19 +16,19 @@ p.param.t_span        = [0 5];     % s
 d.param.t_span      = 'T';
 
 % Relative tolerance (applies to all components of the solution vector)
-p.param.rel_tol        = 1e-9;
-d.param.rel_tol      = '';
+p.param.rel_tol     = 1e-3;
+d.param.rel_tol     = '';
 
 % Absolute tolerance (applies to individual components of solution vector)
-p.param.abs_tol       = 1e-9;
+p.param.abs_tol     = 1e-5;
 d.param.abs_tol     = '';
 
 % Scaling constants (helps the solver avoid crazy numbers)
-p.param.sL = 2e-2;   % m
-d.param.sL = 'L';
+p.param.sL      = 2e-2;   % m
+d.param.sL      = 'L';
 
-p.param.sT = 1;      % s
-d.param.sT = 'T';
+p.param.sT      = 1;      % s
+d.param.sT      = 'T';
 
 
 %% Prey parameters  
@@ -37,7 +40,7 @@ d.prey.x0           = 'L';
 p.prey.y0           = -1e-2;      % m    
 d.prey.y0           = 'L';
 
-p.prey.theta0         = (90-30)/180*pi; % rad    
+p.prey.theta0         = (180-30)/180*pi; % rad    
 d.prey.theta0         = '';
 
 % Initial speed
@@ -51,7 +54,7 @@ d.prey.thrshEscape    = 'L';
 p.prey.spdEscape      = 5e-2;       % m/s  
 d.prey.spdEscape      = 'L/T';
 
-p.prey.rotSpdEscape   = 40;         % rad/s
+p.prey.rotSpdEscape   = 35;         % rad/s
 d.prey.rotSpdEscape   = '1/T';
 
 p.prey.spdResp        = 2e-2;       % m/s
@@ -100,25 +103,25 @@ d.prey.fieldSize     = 'L';
 %% Predator parameters
 
 % Initial body position & orientation 
-p.pred.x0                 = 0e-2;         % m  
+p.pred.x0             = 0e-2;         % m  
 d.pred.x0             = 'L';
 
-p.pred.y0                 = 0e-2;         % m      
+p.pred.y0               = 0e-2;         % m      
 d.pred.y0               = 'L';
 
-p.pred.theta0             = 0*pi/4;      % rad  
+p.pred.theta0           = 3*pi/4;      % rad  
 d.pred.theta0           = '';
 
 % Initial speed
-p.pred.spd0               = 2e-2;      % m/s 
+p.pred.spd0             = 2e-2;      % m/s 
 d.pred.spd0             = 'L/T';
 
 % Interval between start of saccades
-p.pred.sccd_intvl         = 2;         % s
+p.pred.sccd_intvl       = 2;         % s
 d.pred.sccd_intvl       = 'T';
 
 % Duration of a saccade
-p.pred.sccd_prd           = 0.5;       % s
+p.pred.sccd_prd         = 0.5;       % s
 d.pred.sccd_prd         = 'T';
 
 % Peak rate of rotation during saccade
@@ -126,42 +129,42 @@ p.pred.sccd_omega       = 2;         % rad/s
 d.pred.sccd_omega       = '1/T';
 
 % Peak rate of rotation encounter with wall
-p.pred.wall_omega         = 10;         % rad/s
+p.pred.wall_omega       = 10;         % rad/s
 d.pred.wall_omega       = '1/T';
 
 % Width of head
-p.pred.bod_width          = 0.3e-2;    % m
+p.pred.bod_width        = 0.3e-2;    % m
 d.pred.bod_width        = 'L';
 
-p.pred.bod_len            = 2e-2;      % m
+p.pred.bod_len          = 2e-2;      % m
 d.pred.bod_len          = 'L';
 
-p.pred.numBodPts          = p.prey.numBodPts;
+p.pred.numBodPts        = p.prey.numBodPts;
 d.pred.numBodPts        = '';
 
 % Position of COM
 p.pred.COM_len        = p.pred.bod_len/4; % m 
-d.pred.COM_len      = 'L';
+d.pred.COM_len        = 'L';
 
 % Distance for sensing walls
 p.pred.fieldSize       = p.pred.bod_width * 3;  % m
-d.pred.fieldSize     = 'L';
+d.pred.fieldSize       = 'L';
 
 % Distance from prey for initiating a strike
 p.pred.strike_thresh  = 1e-2;  % m
-d.pred.strike_thresh = 'L';
+d.pred.strike_thresh  = 'L';
 
 % Strike duration
 p.pred.strike_dur     = 30e-3; % s
-d.pred.strike_dur   = 'T';
+d.pred.strike_dur     = 'T';
 
 % Maximum distance of capture
 p.pred.strike_reach   = 5e-3;  % m
-d.pred.strike_reach = 'T';
+d.pred.strike_reach   = 'L';
 
 % Angular spread of capture area
 p.pred.strike_range   = pi/2;  % rad
-d.pred.strike_range = '';
+d.pred.strike_range   = '';
 
 % Receptive field of visual system (rad). Easter (1996) gives the functional 
 % retinal field of 163 deg for 4 dpf. Though I give an additional 20 deg
