@@ -9,15 +9,15 @@ d.param.tank_radius     = 'L';
 %% Solver parameters
 
 % Time span for simulation
-p.param.t_span        = [0 80];     % s
+p.param.t_span        = [0 5];     % s
 d.param.t_span      = 'T';
 
 % Relative tolerance (applies to all components of the solution vector)
-p.param.rel_tol        = 1e-3;
+p.param.rel_tol        = 1e-9;
 d.param.rel_tol      = '';
 
 % Absolute tolerance (applies to individual components of solution vector)
-p.param.abs_tol       = 1e-5;
+p.param.abs_tol       = 1e-9;
 d.param.abs_tol     = '';
 
 % Scaling constants (helps the solver avoid crazy numbers)
@@ -37,7 +37,7 @@ d.prey.x0           = 'L';
 p.prey.y0           = -1e-2;      % m    
 d.prey.y0           = 'L';
 
-p.prey.theta0         = (180-30)/180*pi; % rad    
+p.prey.theta0         = (90-30)/180*pi; % rad    
 d.prey.theta0         = '';
 
 % Initial speed
@@ -51,7 +51,7 @@ d.prey.thrshEscape    = 'L';
 p.prey.spdEscape      = 5e-2;       % m/s  
 d.prey.spdEscape      = 'L/T';
 
-p.prey.rotSpdEscape   = 35;         % rad/s
+p.prey.rotSpdEscape   = 40;         % rad/s
 d.prey.rotSpdEscape   = '1/T';
 
 p.prey.spdResp        = 2e-2;       % m/s
@@ -106,7 +106,7 @@ d.pred.x0             = 'L';
 p.pred.y0                 = 0e-2;         % m      
 d.pred.y0               = 'L';
 
-p.pred.theta0             = 3*pi/4;      % rad  
+p.pred.theta0             = 0*pi/4;      % rad  
 d.pred.theta0           = '';
 
 % Initial speed

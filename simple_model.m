@@ -18,7 +18,7 @@ p = convert_params(pIn,d);
 options  = odeset('RelTol',p.param.rel_tol,...
                   'AbsTol',p.param.abs_tol, ...
                   'Events',@capture_fnc, ...
-                  'MaxStep',p.pred.sccd_prd/2);
+                  'MaxStep',p.pred.sccd_prd/25);
                           
               
 %% Solve & save results in SI units
@@ -73,23 +73,26 @@ s = give_behavior('Initialize', p);
     % ODE for the dynamics of the system
     
         % Find body position of both fish
-        s = give_behavior('Body positions', p, s, t, X);   
+%         s = give_behavior('Body positions', p, s, t, X);   
         
         % BEHAVIORAL CHANGES ----------------------------------------------
 
         % Set prey behavior
-        s = give_behavior('Prey', p, s, t, X);
-        
-        % Set predator behavior
-        s = give_behavior('Predator', p, s, t, X);
-        
-        % Determine whether prey is captured
-        s = give_behavior('Capture', p, s, t, X);
+%         s = give_behavior('Prey', p, s, t, X);
+%         
+%         % Set predator behavior
+%         s = give_behavior('Predator', p, s, t, X);
+%         
+%         % Determine whether prey is captured
+%         s = give_behavior('Capture', p, s, t, X);
+
+        % Set predator and prey behavior for Weihs situation
+ 
+        s = give_behavior('Weihs', p, s, t, X);
         
         % Update global 'captured' variable
         captured = s.captured;
 
-        
         % OUTPUTS --------------------------------------------------------- 
         
         % Prey velocity in x & y directions

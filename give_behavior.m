@@ -26,7 +26,7 @@ if nargin > 4
     thetaPred  = X(6);
     
     % Distance between prey and predator
-    dist = hypot(xPred-xPrey,yPred-yPrey);
+    dist = hypot(xPrey-xPred,yPrey-yPred);
     
 end
 
@@ -86,6 +86,9 @@ case 'Initialize'
     
     % Set initial direction of escape
     s.prey.dirEsc = 1;
+    
+    % Count the number of escape initiations
+    s.escapeNum = 1;
 
     % VISUAL SYSTEM PARAMETERS ------------------------------------------------
     
@@ -164,7 +167,7 @@ case 'Prey'
 
     else
         % Escape response
-        % If within an escape response AND within 4 x capture distance
+        % If within an escape response AND within distance threshold
         if ~s.prey.escapeOn && (dist < p.prey.thrshEscape)
             
             % Indicate that we are in an escape response
@@ -185,14 +188,14 @@ case 'Prey'
         
         % If we are beyond the escape duration . . .
         if s.prey.escapeOn && ((t-s.prey.stimTime-p.prey.lat) > p.prey.durEscape)
-            escapeOn = 0;
+            s.prey.escapeOn = 0;
         end
         
         % If we are within the period of an escape . . .
         if s.prey.escapeOn
             %stimTime
             [s.prey.omega, s.prey.spd] = prey_escape(t, s.prey.stimTime,...
-                p.prey, 0, 0, s.prey.dirEsc);
+                p.prey, 0, 0, s.prey.dirEsc,'full');
         else
             [s.prey.omega, s.prey.tSccd, s.prey.dirSccd, s.prey.onSccd] = ...
                 foraging(p.prey, s.prey.tSccd, t, s.prey.dirSccd,...
@@ -283,6 +286,75 @@ case 'Capture'
     [s.pred.strikeTime, s.captured] = pred_strike(t, s.pred.strikeTime, ...
         [xPred yPred], thetaPred, p.pred, dist, s.prey.xBodG, s.prey.yBodG);
 
+    
+case 'Weihs' 
+    
+    % Check inputs
+    if nargin < 5
+        error('Need to provide 5 inputs for this action')
+    end
+    
+    % Store current orientation
+    s.prey.theta = X(3);
+    s.pred.theta = X(6);
+    
+    % PREY BEHAVIOR --------------------------------------
+ 
+    % ------ for testing w/ instantaneous change in theta ------ %
+%     if dist < p.prey.thrshEscape
+%         s.prey.spd = p.prey.spdEscape;
+%         s.prey.theta = p.prey.theta0;
+%         s.prey.omega = 0;
+%     else
+%         s.prey.spd = p.prey.spd0;
+%         s.prey.theta = p.prey.theta0;
+%         s.prey.omega = 0;
+%     end
+    % ---------------------------------------------------------- %
+        
+    % If only one escape maneuver has been initiated . . . 
+    if s.escapeNum < 2
+        
+        % If within escape response AND distance threshold
+        if ~s.prey.escapeOn && dist < p.prey.thrshEscape
+            % Indicate that we are in an escape response
+            s.prey.escapeOn = 1;
+            
+            % Note the time of its start
+            s.prey.stimTime = t;
+        end
+        
+        % If we are beyond the escape duration . . .
+        if s.prey.escapeOn && ((t-s.prey.stimTime-p.prey.lat) > p.prey.durEscape)
+            s.prey.escapeOn = 0;
+            s.prey.omega = 0;
+            
+            % update the number of escape responses
+            s.escapeNum = s.escapeNum + 1;
+        end
+        
+        % If we are within the period of an escape . . .
+        if s.prey.escapeOn
+            s.prey.spd = p.prey.spdEscape;
+            s.prey.omega = prey_escape(t, s.prey.stimTime,...
+                p.prey, 0, 0, 1,'Weihs');
+        else
+            s.prey.spd = p.prey.spd0;
+            s.prey.omega = 0;
+        end
+    % Otherwise . . .     
+    else
+        s.prey.spd = p.prey.spdEscape;
+        s.prey.omega = 0;
+    end
+    
+    % PREDATOR BEHAVIOR ----------------------------------
+    s.pred.spd = p.pred.spd0;
+    s.pred.omega = 0;
+    
+    % if we want predator always directed toward prey . . .
+%     s.pred.theta = acos((xPrey-xPred)/dist);    
+        
 end
 
 
