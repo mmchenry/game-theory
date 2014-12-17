@@ -10,8 +10,6 @@ figure('DoubleBuffer','on')
 % Get color palette
 clrs = get(gca,'ColorOrder');
 
-%TODO: Add behavioral events to graphs
-
 %TODO: Fix animation code (revert to old method of interpolation)
 
 
@@ -121,6 +119,7 @@ case 'Turning data'
     ylabel('Rate of orientation change (deg/s)')
     
     hold off
+    
     
 case 'Trajectories'
 % Plot trajectories 
