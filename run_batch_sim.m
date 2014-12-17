@@ -28,6 +28,12 @@ dPath = [root filesep 'Batch weihs'];
 % Default parameter values
 [p,d] = default_params;
 
+% Relative tolerance
+p.param.rel_tol  = 1e-9; 
+ 
+% Absolute tolerance
+p.param.abs_tol  = 1e-9;
+
 % Time span for simulation
 p.param.t_span        = [0 4];      % s
 
@@ -48,27 +54,14 @@ p.prey.durEscape = 25e-3;           % s
 p.pred.x0 = -2e-2;                  % m
 p.pred.y0 = 0;                      % m
 p.pred.spd0 = 1e-2;                 % m/s
+p.pred.theta0 = 0;                  % rad
 
 % Values for K= predSpd/preySpd (gets coarse as values increase)
-% K = 0.1:0.1:0.9;                % unitless
-% K = [K, 1.25:0.25:6.25];        % unitless
-% K = [K, 6.5:0.5:15];            % unitless
-% K = [K, 16:1:40];               % unitless
-% K = 2;                          % test value
-K = 10.^linspace(0,1.6,num_K);
-
-% Numbers of escape speeds to try
-%M = length(prey_spdEscape);
+K = 10.^linspace(0,2,num_K);
 
 % Angle of escape 
 % prey_theta = 45;              % test value
-prey_theta = [0:0.5:95] ./180*pi;    % rad
-
-% Rotational speed during escape
-%prey_rotSpd = prey_theta_rad ./ p.prey.durEscape;   % rad/s
-
-% length of rotational speed vector
-%N = length(prey_rotSpd);
+prey_theta = [0:0.5:120] ./180*pi;    % rad
 
 
 %% Run Simulation 
@@ -76,10 +69,8 @@ prey_theta = [0:0.5:95] ./180*pi;    % rad
 
 % Initialize timer, figure
 tic
-
-% Set up plot
 f = figure('DoubleBuffer','on');
-h = plot(K, 0.*K, 'o');
+h = semilogx(K, 0.*K, 'o');
 set(h,'Color',0.5.*[1 1 1])
 hold on
 
@@ -104,7 +95,7 @@ for j = 1:length(K)
         % Run Simulation
         R   = simple_model(p,d);
         
-        R = reconstruct(R, p, d);
+        %R = reconstruct(R, p, d);
         
         % Distance between predator and prey
         dist = hypot(R.xPred-R.xPrey,R.yPred-R.yPrey);
@@ -116,12 +107,6 @@ for j = 1:length(K)
         B.p{j,k}            = p;
         B.d{j,k}            = d;
 
-        % Plot distance function
-         figure;
-         plot(R.t, dist,'-','MarkerSize',10)
-        
-        % Plot orientation angles
-        vis_results('Turning data',R)
     end
   
     % Find the max_min distance over all angles; find corresponding angle 
@@ -130,12 +115,12 @@ for j = 1:length(K)
 
     % Update plot
     figure(f)
-    h = plot(B.K, B.theta_maxmin,'o-r');
+    h = semilogx(B.K, B.theta_maxmin .*180/pi,'o-r');
     set(h,'MarkerFaceColor','r')
     pause(0.001)
     xlabel('K')
     ylabel('Theta maxmin')
-    ylim([0 pi/2])
+    ylim([0 90])
     
     % Save data so far
     save([dPath filesep date],'B')
