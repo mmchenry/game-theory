@@ -3,45 +3,67 @@ function [max_min_d, theta_min]= run_batch_sim
 % situation
 
 
-%% Parameter values
+%% Code execution
 
-% Number of K values
-num_K = 15;
+% Re-rerun batch
+run_batch = 1;
+
+% Visualize simulations results during execution
+vis_sims = 1;
+
+
+%% Batch parameters
+
+% K values
+num_K = 10;
+min_K = 1;
+max_K = 100;
+
+% Angle values
+num_ang = 100;
+min_ang = 0;
+max_ang = 120;
+
+% Response distances
+num_dist = 10;
+min_dist = 1e-3;
+max_dist = 3e-2;
 
 
 %% Path definitions
 
 % Identify Matt's computer
-if isdir('/Users/mmchenry/Documents/Projects')
-    root = '/Users/mmchenry/Documents/Projects/Game theory';
+if isdir('/Users/mmchenry/Dropbox/Literature')
+    root = '/Users/mmchenry/Dropbox/Literature/Review with Alberto/predprey data';
     
-else
-    root = '/Users/alberto/Dropbox/Review with Alberto/PredPrey Data';
-    
+% Or Alberto's
+else    
+    root = '/Users/alberto/Dropbox/Review with Alberto/PredPrey Data'; 
 end
 
 % Path to data
-dPath = [root filesep 'Batch weihs'];
+dPath = [root];
 
 
-%% Define simulation parameters
+%% Simulation parameters
+
 % Default parameter values
 [p,d] = default_params;
 
 % Relative tolerance
-p.param.rel_tol  = 1e-9; 
+p.param.rel_tol  = 1e-11; 
  
 % Absolute tolerance
-p.param.abs_tol  = 1e-9;
+p.param.abs_tol  = 1e-11;
 
 % Time span for simulation
-p.param.t_span        = [0 4];      % s
+p.param.t_span        = [0 2];      % s
 
 % Make tank way too big
 p.param.tank_radius = 1;            % m  
 
 % prey initial position & speed
-p.prey.x0 = 0.25e-2;                   % m
+p.prey.x0 = 0.25e-2;                % m
 p.prey.y0 = 0;                      % m
 p.prey.spd0 = 0;                    % m/s
 p.prey.theta0 = 0;                  % rad  
@@ -57,133 +79,202 @@ p.pred.spd0 = 1e-2;                 % m/s
 p.pred.theta0 = 0;                  % rad
 
 % Values for prey initial position (acts as response distance)
-prey_x0 = linspace(1e-3,2e-2,10);
+B.prey_x0 = linspace(min_dist, max_dist, num_dist)';
 
 % Values for K= predSpd/preySpd (gets coarse as values increase)
-K = 10.^linspace(-1,2,num_K);
+B.K = 10.^linspace(log10(min_K), log10(max_K),num_K)';
 
 % Angle of escape 
 % prey_theta = 60 ./180*pi;              % test value
-prey_theta = [0:0.5:120] ./180*pi;    % rad
+B.prey_theta = linspace(min_ang, max_ang, num_ang)' ./180*pi;    % rad
 
-% Set up cell array to store all output
-S = cell(1,length(prey_x0));
+% Store parameters
+B.p = p;
+B.d = d;
 
-% Store K values
-B.K            = K;
-
-% Store theta values
-B.prey_theta   = prey_theta;
 
 %% Run Simulation
 % outermost loop runs through initial distances
 % middle loop runs through speeds, inner loop runs through angles
 
-% Initialize timer, figure
-tic
-% f = figure('DoubleBuffer','on');
-% h = semilogx(K, 0.*K, 'o');
-% set(h,'Color',0.5.*[1 1 1])
-% hold on
+if run_batch
+
+% Initialize timer
+tStart = tic;
+
+% Initialize plot
+if vis_sims
+    f = figure('DoubleBuffer','on');
+    h = semilogx(B.K, 0.*B.K, 'o');
+    set(h,'Color',0.5.*[1 1 1])
+    hold on
+    % Get color palette
+    clrs = repmat(get(gca,'ColorOrder'), ceil(length(B.prey_x0)/7),1);
+end
 
 % Loop through initial distance
-for i = 1:length(prey_x0)
-    
-    % Store initial distance values for simulation
-    B.prey_x0 = prey_x0(i);
+for i = 1:length(B.prey_x0)
     
     % set current initial distance
-    p.prey.x0 = prey_x0(i);
+    p.prey.x0 = B.prey_x0(i);
     
     % Loop thru escape speeds
-    for j = 1:length(K)
+    for j = 1:length(B.K)
         
         % Set current escape speed
-        p.prey.spdEscape = p.pred.spd0./K(j);
+        p.prey.spdEscape = p.pred.spd0./B.K(j);
         
-        % Loop thru angles of rotation
-        for k = 1:length(prey_theta)
-            
-            % set current speed of rotation
-            p.prey.rotSpdEscape = prey_theta(k) ./ p.prey.durEscape;
-            
-            % set current initial theta of prey (used for testing)
-            %         p.prey.theta0 = prey_theta(k);
-            
-            % Run Simulation
-            R   = simple_model(p,d);
-            
-            %R = reconstruct(R, p, d);
-            
-            % Distance between predator and prey
-            dist = hypot(R.xPred-R.xPrey,R.yPred-R.yPrey);
-            
-            % Store results
-            B.min_dist(j,k)     = min(dist);
-            B.R{j,k}            = R;
-            B.p{j,k}            = p;
-            B.d{j,k}            = d;
-            
-        end
+        
+        theta_maxmin = fminbnd(@(theta) simFunction(theta, p, d),0,120/180*pi);
+        
+        
+%         % Run simulations for each angle of rotation
+%         for k = 1:length(B.prey_theta)
+%             
+%             % set current speed of rotation
+%             p.prey.rotSpdEscape = B.prey_theta(k) ./ p.prey.durEscape;
+%             
+%             % Run Simulation
+%             R   = simple_model(p,d);
+%             
+%             % Distance between predator and prey
+%             dist = hypot(R.xPred-R.xPrey,R.yPred-R.yPrey);
+%             
+%             % Get minimum
+%             min_dist(k,1) = min(dist);
+%             
+%             clear R dist
+%         end
         
         % Find the max_min distance over all angles; find corresponding angle
-        [max_min_d, theta_ind]  = max(B.min_dist(j,:));
-        B.theta_maxmin(j,1)     = B.prey_theta(theta_ind);
-        
+        %[max_min_d, theta_ind]  = max(min_dist);
+        B.theta_maxmin(j,i)     = theta_maxmin;
+
         % Update plot
-%         figure(f)
-%         h = semilogx(B.K, B.theta_maxmin .*180/pi,'o-r');
-%         set(h,'MarkerFaceColor','r')
-%         pause(0.001)
-%         xlabel('K')
-%         ylabel('Theta maxmin')
-%         ylim([0 100])
+        if vis_sims
+            figure(f)
+            if (j > 1) , delete(h(j-1)); end
+            h(j) = semilogx(B.K(1:j), B.theta_maxmin(1:j,i) .*180/pi,'or-');
+            set(h(j),'MarkerFaceColor',clrs(i,:))
+            set(h(j),'MarkerEdgeColor',clrs(i,:))
+            set(h(j),'Color',clrs(i,:))
+            pause(0.001)
+            xlabel('K')
+            ylabel('Theta maxmin')
+            ylim([0 120])
+        end
         
+        % Update status
+        update_time(tStart, length(B.K)*(i-1) + j, ...
+                    length(B.K)*length(B.prey_x0), ' ');
+                
+        clear k min_dist theta_ind max_min_d
     end
     
-    % Time so far
-    tlapse = toc;
-    
-    % Time per loop
-    time_per = tlapse/i;
-    
-    % Time remaining
-    time_left = round((length(prey_x0)-i)*time_per/60);
-    
-    % Update
-    disp(['Completed ' num2str(i) ' of ' num2str(length(prey_x0)) ', '  ...
-        num2str(time_left) ' min left']);
-    
-    % Save output from simulation
-    S{1,i}         = B;
+    % Update outer loop
+    %update_time(tStart, i, length(B.prey_x0), '');
+
 end
-        % Date and Time string for file name
-        % Example output: 18-Dec-2014-11h12m27s
-        s = strcat(datestr(clock,'dd-mmm-yyyy-HH'),'h',...
-            datestr(clock, 'MM'),'m',datestr(clock,'ss'),'s');
+
+% Date and Time string for file name
+% Example output: 18-Dec-2014-11h12m27s
+s = strcat(datestr(clock,'dd-mmm-yyyy-HH'),'h',...
+    datestr(clock, 'MM'),'m',datestr(clock,'ss'),'s');
+
+% Save all data
+save([dPath filesep s],'B','-v7.3')
+
+clear i h
+
+else
+    
+    % Clear unneeded variables
+    clear B p d
+    
+    % Select data file
+    cd(dPath)
+    [fName, dPath] = uigetfile('*.mat','Choose data file');
+    
+    % Load data
+    load([dPath filesep fName]);
+    
+end
+
         
-        % Save all data
-        save([dPath filesep s],'S','-v7.3')
-
-
 %% plot Weihs optimal angles and optimal angles from simulations
 
+
+% Make smooth K values
+K_ana = 10.^linspace(log10(min_K), log10(max_K), 500);
+
 % optimal angles from Weihs (theta=0 for K<1, use eq. 42 for K>=1)
-theta_weihs = [0.* K(K<1), acos(1./K(K>=1))*180./pi]';
+theta_weihs = [0.* K_ana(K_ana<1), acos(1./K_ana(K_ana>=1))*180./pi]';
 
 F = figure;
-semilogx(K,theta_weihs,'LineWidth',3)
+h(1) = semilogx(K_ana,theta_weihs,'LineWidth',1);
+
+l_txt{1} = 'Weihs';
+
+% Get color palette
+%clrs = repmat(get(gca,'ColorOrder'), 1, ceil(length(B.prey_x0)/7));
 hold on
 
 % run through S and plot optimal angles
-for l = 1:length(prey_x0)
+for i = 1:size(B.theta_maxmin, 2)
     figure(F)
-        semilogx(K, S{l}.theta_maxmin .*180/pi,'o-');
-        xlabel('K')
-        ylabel('Optimal Escape Angle')
-        ylim([0 100])
+    h(i+1) = semilogx(B.K, B.theta_maxmin(:,i).*180/pi,'o-');
+    l_txt{i+1} = [num2str(B.prey_x0(i)*100) ' cm'];
+    clr = get(h(i+1),'Color');
+    set(h(i+1),'MarkerFaceColor',clr);
 end
 
-% TO DO: Update colors and add labels/legend on plot.
+xlabel('Relative predator speed')
+ylabel('Optimal Escape Angle')
+ylim([0 120])
+legend(l_txt)
+
+
+
+
+function y = simFunction(theta, p, d)
+
+    % set current speed of rotation
+    p.prey.rotSpdEscape = theta ./ p.prey.durEscape;
+
+    % Run Simulation
+    R   = simple_model(p,d);
+
+    % Distance between predator and prey
+    min_dist = min(hypot(R.xPred-R.xPrey,R.yPred-R.yPrey));
+
+    % Take inverse of min dist b/c the optimization attempts to find the theta
+    % that produces the smallest number 
+    y = -min_dist;
 
 end
+
+function update_time(tStart, idx, len, txt)
+% Reports progress at the command line
+    
+    % Time so far
+    tlapse = toc(tStart);
+
+    % Time per loop
+    time_per = tlapse/idx;
+
+    % Time remaining
+    time_left = ceil(((len-idx)*time_per/60));
+
+    % Update
+    disp([txt 'Done ' num2str(idx) ' of ' num2str(len) ', ~'  ...
+        num2str(time_left) ' min left']);
+
+end
+
+
+end
+
+
+
+
+
