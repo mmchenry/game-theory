@@ -1,4 +1,4 @@
-function R = simple_model(pIn,d)
+function R = simple_model(pIn, d)
 % ODE Predator-prey interaction model (no longer so "simple")
 
 
@@ -11,6 +11,16 @@ sL = pIn.param.sL;
 % Convert parameter values, according to scaling constants
 p = convert_params(pIn,d);
 
+% Define simulation type
+p.param.sim_type = pIn.param.sim_type;
+
+% Set default simType
+if nargin < 3
+    simType = 'default';
+end
+
+p.simType = simType;
+
 
 %% Configure solver
 
@@ -18,7 +28,7 @@ p = convert_params(pIn,d);
 options  = odeset('RelTol',p.param.rel_tol,...
                   'AbsTol',p.param.abs_tol, ...
                   'Events',@capture_fnc, ...
-                  'MaxStep',p.pred.sccd_prd/25);
+                  'MaxStep',p.param.max_step);
                           
               
 %% Solve & save results in SI units
@@ -77,18 +87,28 @@ s = give_behavior('Initialize', p);
         
         % BEHAVIORAL CHANGES ----------------------------------------------
 
-        % Set prey behavior
-%         s = give_behavior('Prey', p, s, t, X);
-%         
-%         % Set predator behavior
-%         s = give_behavior('Predator', p, s, t, X);
-%         
-%         % Determine whether prey is captured
-%         s = give_behavior('Capture', p, s, t, X);
-
-        % Set predator and prey behavior for Weihs situation
- 
-        s = give_behavior('Weihs', p, s, t, X);
+        if strcmp(p.param.sim_type,'default')
+            % Set prey behavior
+            s = give_behavior('Prey', p, s, t, X);
+            
+            % Set predator behavior
+            s = give_behavior('Predator', p, s, t, X);
+            
+            % Determine whether prey is captured
+            s = give_behavior('Capture', p, s, t, X);
+            
+        elseif strcmp(p.param.sim_type,'Weihs')
+            % Set predator and prey behavior for Weihs situation
+            s = give_behavior('Weihs', p, s, t, X);
+            
+        elseif strcmp(p.param.sim_type,'Weihs, acceleration')
+            % Set predator and prey behavior for Weihs situation
+            s = give_behavior('Weihs, acceleration', p, s, t, X);
+            
+        else
+            error('Simulation type not recognized');
+            
+        end
         
         % Update global 'captured' variable
         captured = s.captured;
@@ -123,7 +143,7 @@ function [value, isterminal, direction] = capture_fnc(~,X)
     
     % the event occurs when distance is less than capture distance
     %distance = hypot(X(4)-X(1),X(5)-X(2));
-    if captured
+    if captured || (X(4)>X(1))
         %distance < p.param.d_capture
         value      = 0;
         isterminal = 1;         % tells ode45 to stop integration

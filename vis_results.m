@@ -12,6 +12,10 @@ clrs = get(gca,'ColorOrder');
 
 %TODO: Fix animation code (revert to old method of interpolation)
 
+if ~isfield(R,'pred')
+    error('you need to apply "reconstruct.m" to the R structure');
+end
+    
 
 %% Give requested visualization
 

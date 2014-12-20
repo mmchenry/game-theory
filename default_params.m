@@ -30,6 +30,9 @@ d.param.sL      = 'L';
 p.param.sT      = 1;      % s
 d.param.sT      = 'T';
 
+p.param.sim_type = 'default';
+d.param.sim_type = '';
+
 
 %% Prey parameters  
 
@@ -188,3 +191,10 @@ d.pred.vis_freq = '1/T';
 % Threshold number of retinal cells for noticing prey
 p.pred.vis_thresh = 0*1;
 d.pred.vis_thresh = '';
+
+
+
+%% Additional parameters
+
+p.param.max_step = p.pred.sccd_prd/25;
+d.param.max_step = 'T';

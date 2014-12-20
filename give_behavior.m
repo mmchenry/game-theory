@@ -410,8 +410,65 @@ case 'Weihs'
     s.pred.omega = 0;
     
     % if we want predator always directed toward prey . . .
-%     s.pred.theta = acos((xPrey-xPred)/dist);    
+%     s.pred.theta = acos((xPrey-xPred)/dist);   
+
+
+case 'Weihs, acceleration' 
+    
+    % Check inputs
+    if nargin < 5
+        error('Need to provide 5 inputs for this action')
+    end
+    
+    % Store current orientation
+    s.prey.theta = X(3);
+    s.pred.theta = X(6);
+       
+    % If only one escape maneuver has been initiated . . . 
+    if s.escapeNum < 2
         
+        % If within escape response AND distance threshold
+        if ~s.prey.escapeOn && dist < p.prey.thrshEscape
+            % Indicate that we are in an escape response
+            s.prey.escapeOn = 1;
+            
+            % Note the time of its start
+            s.prey.stimTime = t;
+        end
+        
+        % If we are beyond the escape duration . . .
+        if s.prey.escapeOn && ...
+                ((t-s.prey.stimTime-p.prey.lat) > p.prey.durEscape)
+            s.prey.escapeOn = 0;
+            s.prey.omega = 0;
+            
+            % update the number of escape responses
+            s.escapeNum = s.escapeNum + 1;
+        end
+        
+        % If we are within the period of an escape . . .
+        if s.prey.escapeOn
+            s.prey.spd = p.prey.spdEscape/p.prey.durEscape * ...
+                        (t-s.prey.stimTime);
+            s.prey.omega = prey_escape(t, s.prey.stimTime,...
+                          p.prey, 0, 0, 1,'Weihs');
+        else
+            s.prey.spd   = s.prey.spd;
+            s.prey.omega = 0;
+        end
+    % Otherwise . . .     
+    else
+        s.prey.spd = p.prey.spdEscape;
+        s.prey.omega = 0;
+    end
+    
+    % PREDATOR BEHAVIOR ----------------------------------
+    s.pred.spd = p.pred.spd0;
+    s.pred.omega = 0;
+    
+    % if we want predator always directed toward prey . . .
+%     s.pred.theta = acos((xPrey-xPred)/dist);    
+                
 end
 
 

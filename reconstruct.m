@@ -30,6 +30,7 @@ for i = 1:length(R.t)
     % Store rates of change
     R.pred.omega(i,1)   = s.pred.omega;
     R.prey.omega(i,1)   = s.prey.omega;
+    R.prey.spd(i,1)     = s.prey.spd;
     
     % Predator behavioral states
     R.pred.strike(i,1)  = ~isnan(s.pred.strikeTime);
