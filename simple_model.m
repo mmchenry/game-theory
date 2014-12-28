@@ -83,7 +83,7 @@ s = give_behavior('Initialize', p);
     % ODE for the dynamics of the system
     
         % Find body position of both fish
-%         s = give_behavior('Body positions', p, s, t, X);   
+        s = give_behavior('Body positions', p, s, t, X);   
         
         % BEHAVIORAL CHANGES ----------------------------------------------
 
@@ -95,7 +95,7 @@ s = give_behavior('Initialize', p);
             s = give_behavior('Predator', p, s, t, X);
             
             % Determine whether prey is captured
-            s = give_behavior('Capture', p, s, t, X);
+            s = give_behavior('Strike', p, s, t, X);
             
         elseif strcmp(p.param.sim_type,'Weihs')
             % Set predator and prey behavior for Weihs situation
@@ -104,6 +104,13 @@ s = give_behavior('Initialize', p);
         elseif strcmp(p.param.sim_type,'Weihs, acceleration')
             % Set predator and prey behavior for Weihs situation
             s = give_behavior('Weihs, acceleration', p, s, t, X);
+            
+        elseif strcmp(p.param.sim_type,'Weihs, survive')
+            % Set predator and prey behavior 
+            s = give_behavior('Weihs, survive', p, s, t, X);
+            
+            % Determine whether prey is captured
+            s = give_behavior('Strike', p, s, t, X);
             
         else
             error('Simulation type not recognized');
@@ -143,7 +150,7 @@ function [value, isterminal, direction] = capture_fnc(~,X)
     
     % the event occurs when distance is less than capture distance
     %distance = hypot(X(4)-X(1),X(5)-X(2));
-    if captured || (X(4)>X(1))
+    if captured %|| (X(4)>X(1))
         %distance < p.param.d_capture
         value      = 0;
         isterminal = 1;         % tells ode45 to stop integration

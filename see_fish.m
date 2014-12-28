@@ -59,7 +59,7 @@ if nTot > p.vis_thresh
     end
        
     % If time since stimulus start exceeds sensory period . . .
-    if ~isnan(senseTime) && (senseTime >=1/p.vis_freq)
+    if ~isnan(senseTime) && (t-senseTime >=1/p.vis_freq)
         
         % Coordinates of stimulus in local FOR
         xCoords = [xPreyR(~isnan(psiR)); xPreyL(~isnan(psiL))];

@@ -301,7 +301,7 @@ if ~isnan(s.pred.strikeTime)
     % If not finished . . .
     if t < (s.pred.strikeTime + p.pred.strike_dur)
         
-        % Parameters for the each function
+        % Parameters for the reach function
         t_c = t - s.pred.strikeTime;
         dur = p.pred.strike_dur;
         
@@ -468,14 +468,89 @@ case 'Weihs, acceleration'
     
     % if we want predator always directed toward prey . . .
 %     s.pred.theta = acos((xPrey-xPred)/dist);    
-                
+
+
+case 'Weihs, survive'
+    
+    % Check inputs
+    if nargin < 5
+        error('Need to provide 5 inputs for this action')
+    end
+    
+    % Store current orientation
+    s.prey.theta = X(3);
+    s.pred.theta = X(6);
+    
+    % PREY BEHAVIOR --------------------------------------
+        
+    % If only one escape maneuver has been initiated . . . 
+    if s.escapeNum < 2
+        
+        % If within escape response AND distance threshold
+        if ~s.prey.escapeOn && dist < p.prey.thrshEscape
+            % Indicate that we are in an escape response
+            s.prey.escapeOn = 1;
+            
+            % Note the time of its start
+            s.prey.stimTime = t;
+        end
+        
+        % If we are beyond the escape duration . . .
+        if s.prey.escapeOn && ((t-s.prey.stimTime-p.prey.lat) > p.prey.durEscape)
+            s.prey.escapeOn = 0;
+            s.prey.omega = 0;
+            
+            % update the number of escape responses
+            s.escapeNum = s.escapeNum + 1;
+        end
+        
+        % If we are within the period of an escape . . .
+        if s.prey.escapeOn
+            s.prey.spd = p.prey.spdEscape;
+            s.prey.omega = prey_escape(t, s.prey.stimTime,...
+                p.prey, 0, 0, 1,'Weihs');
+        else
+            s.prey.spd = p.prey.spd0;
+            s.prey.omega = 0;
+        end
+    % Otherwise . . .     
+    else
+        s.prey.spd = p.prey.spdEscape;
+        s.prey.omega = 0;
+    end
+    
+    % PREDATOR BEHAVIOR------------------
+    
+    % NOTE: for this simulation, pred does not forage or detect wall, pred
+    % travels along x-axis until prey is detected then initiates strike
+    
+    % Predator speed (fixed)      
+    s.pred.spd = p.pred.spd0;
+    
+    % Determine whether prey is detected using 'see_fish'
+    [s.pred.thetaTarget, s.pred.inFieldTime] = see_fish(t, [xPred yPred], ...
+        thetaPred, s.prey.xBodG, s.prey.yBodG, p.pred, ...
+        s.pred.inFieldTime, s.pred.thetaTarget);
+        
+    % If prey visible (i.e. thetaTargetPred is not a nan) . . .
+    if ~isnan(s.pred.thetaTarget)
+        
+        % Normalized deviation
+        norm_dev = (s.pred.thetaTarget - thetaPred)/pi;
+        
+        % TARGETED SWIMMING: Adjust direction of predator, according
+        % to position of prey
+        s.pred.omega = norm_dev * p.pred.wall_omega;
+        
+    % If prey not visible . . .
+    else
+        
+        % Continue on current trajectory
+        s.pred.omega = 0;
+        
+    end
+    
 end
-
-
-
-
-
-
 
 
 function [x,y] = give_coord(kind,p,num_pts)
