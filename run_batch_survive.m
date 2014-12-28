@@ -1,42 +1,36 @@
 function run_batch_survive(batch_type)
 % RUN_BATCH_SURVIVE runs batch simulations of 'simple_model' to determine
-% whether or not the prey survives given (x0,y0), k, and optimal angle. The
-% optimal angle was computed previously and is contained in 'angles.mat'.
-% Currently there's only one batch_type: 'Survive'
+% whether or not the prey survives given (x0,y0), k, and escape angle. The
+% optimal escape angle is computed by calling the nested function
+% 'optimTheta'. Currently there's only one batch_type: 'Survive'
 
-% Grid points used to find optimal angles: [X,Y] = meshgrid(0:0.005,0.305)
-% K values used for optimal angles: K = 10.^linspace(0,2,18);
 
 %% Batch parameters & load angles
 
 % K values
-num_K = 18;
+num_K = 10;
 min_K = 1;
 max_K = 100;  
 
+% Values for K= predSpd/preySpd (gets coarse as values increase)
+B.K = 10.^linspace(log10(min_K), log10(max_K),num_K)';
+
 if (nargin<1) || strcmp(batch_type,'Survive')
-    % step size for grid discretizing 
-    step = 0.005;       % 5mm
+    % number of points for x0 & y0
+    num_x0 = 10;    
+    num_y0 = 10;
     
     % initial position limits (m)
-    min_x0 = 0;
-    max_x0 = 0.305;
+    min_x0 = 0.05;
+    max_x0 = 0.3;
     min_y0 = 0;
-    max_y0 = 0.305;
+    max_y0 = 0.3;
 else
     error('Do not recognize batch_type')
 end
 
-
 % Define batch type
 B.batch_type = batch_type;
-
-% load optimal angles: angles.mat contains optimal angles at each (x0,y0)
-% for various values of K. 'angles' is a 62 x 62 x 18 matrix. values are
-% stored as (x0,y0,K)
-angles = [];            % initialize matrix 
-load 'angles.mat'
-
 
 %% Path definitions
 
@@ -46,8 +40,8 @@ if isdir('/Users/mmchenry/Dropbox/Literature')
     
 % Or Alberto's
 else    
-%     root = '/Users/alberto/Dropbox/Review with Alberto/PredPrey Data';
-    root = '/Users/A_Soto/Documents/MATLAB/McHenry_LabRotation/angle_data';
+    root = '/Users/alberto/Dropbox/Review with Alberto/PredPrey Data';
+%     root = '/Users/A_Soto/Documents/MATLAB/McHenry_LabRotation/angle_data';
 end
 
 % Path to data
@@ -64,7 +58,7 @@ dPath = root;
 p.param.t_span      = [0 7];        % s
 
 % Make tank way too big
-p.param.tank_radius = 0.5;          % m  
+p.param.tank_radius = 1;          % m  
 
 % prey initial position, speed & heading
 p.prey.x0           = 0e-2;         % m
@@ -73,22 +67,19 @@ p.prey.spd0         = 0;            % m/s
 p.prey.theta0       = 0;            % rad  
 
 % distance threshold for prey escape response
-p.prey.thrshEscape  = 2e-2;         % m
+p.prey.thrshEscape  = 5e-2;         % m
 
 % prey escape duration (time to reach escape angle)
 p.prey.durEscape    = 25e-3;        % s
 
+% set max step size
+p.param.max_step = p.prey.durEscape/2;
+
 % predator initial position, speed & heading
 p.pred.x0           = 0e-2;         % m
 p.pred.y0           = 0;            % m
-p.pred.spd0         = 5e-2;         % m/s
+p.pred.spd0         = 8e-2;         % m/s
 p.pred.theta0       = 0;            % rad
-
-% Sample rate of visual system
-p.pred.vis_freq = 10; % 1/s
-
-% Values for K= predSpd/preySpd (gets coarse as values increase)
-B.K = 10.^linspace(log10(min_K), log10(max_K),num_K)';
 
 % Store parameters
 B.p = p;
@@ -99,16 +90,15 @@ B.d = d;
 if (nargin<1) ||strcmp(batch_type,'Survive')
     
     % Values for prey initial position 
-    B.prey_x0         = min_x0:step:max_x0;
-    B.prey_y0         = min_y0:step:max_y0;
+    B.prey_x0         = linspace(min_x0, max_x0, num_x0)';
+    B.prey_y0         = linspace(min_y0, max_y0, num_y0)';
     
     % Generic values to vary in a batch
-    % column 1: x0
-%     batch_vals(:,1)        =  B.prey_x0;
-    batch_vals(:,1)        =  0.10;          % TEST value
-    %column 2: y0
-%     batch_vals(:,2)        =  B.prey_y0;
-    batch_vals(:,2)        =  0.0;           % TEST value
+    % vector 1: x0
+    batch_vals1        =  B.prey_x0;
+    
+    % vector 2: y0
+    batch_vals2        =  B.prey_y0;
     
     % Simulation type
     p.param.sim_type  = 'Weihs, survive';
@@ -124,8 +114,11 @@ end
 % for given K
 B.escape = zeros(length(B.prey_x0),length(B.prey_y0),length(B.K));
 
-% preallocate minimum distance vector
+% preallocate minimum distance matrix
 B.min_dist = zeros(length(B.prey_x0),length(B.prey_y0),length(B.K));
+
+% preallocate optimal angles matrix
+escape_angles = zeros(length(B.prey_x0),length(B.prey_y0),length(B.K));
 
 %% Run Simulation
 % outermost loop runs through speed ratio K
@@ -136,71 +129,60 @@ tStart = tic;
 
 % Loop through initial escape speed (k values)
 for i = 1:length(B.K)
-    
+        
         % Set current escape speed
         p.prey.spdEscape = p.pred.spd0./B.K(i);
 
     % Loop thru x0
-    for j = 1:size(batch_vals,1)
-        
-     %----For Testing-----%        
-        % find index of current x0 to extract angle
-        x_ind = find(B.prey_x0==batch_vals(j,1));
-     %---------------------%     
+    for j = 1:length(batch_vals1)
      
         % set current x0
-        p.prey.x0 = batch_vals(j,1);
+        p.prey.x0 = batch_vals1(j);
      
-        for k = 1:size(batch_vals,1)
-            
-     %----For Testing-----%
-            % find index of current x0 to extract angle
-            y_ind = find(B.prey_y0==batch_vals(k,1));
-            
-            % set current optimal angle
-            theta = angles(x_ind,y_ind,i);
-     %---------------------%   
-     
+        for k = 1:length(batch_vals2)
+
             % set current y0
-            p.prey.y0 = batch_vals(k,2);    
+            p.prey.y0 = batch_vals2(k);
             
-            % set current optimal angle
-%             theta = angles(j,k,i);
+            % compute current optimal escape angle
+            theta = optimTheta(p.prey.x0, p.prey.y0, B.K(i));
+            
+            % store optimal escape angle
+            escape_angles(j,k,i) = theta;
 
             % Set rotation speed according to optimal theta
             p.prey.rotSpdEscape = theta ./ p.prey.durEscape;
             
             % Run simulation
             R   = simple_model(p, d);
-            
-     %---For Testing--------%       
-            % Display whether or not prey escaped
-            if isempty(R.tEnd)
-                disp('prey successfully escaped')
-                
-                % escape = 1 at point (x0,y0) if prey escapes
-                B.escape(x_ind,y_ind,i) = 1;
-            else
-                disp(['the prey was captured at time = ' num2str(R.tEnd)])
-                % escape = 0 at point (x0,y0) if prey captured
-                B.escape(x_ind,y_ind,i) = 0;
-            end
-            
-            % Reconstruct simulation data
-            R = reconstruct(R, p, d);
-            
-            % Plot trajectories
-            vis_results('Trajectories',R)
-        end
-     %--------------------%       
-            
+                 
             % Distance between predator and prey with initial position of
             % prey at (x0,y0)
             min_dist = min(hypot(R.xPred-R.xPrey,R.yPred-R.yPrey));
             
-            B.min_dist(x_ind,y_ind,i) = min_dist;
-                        
-        clear min_dist 
+            B.min_dist(j,k,i) = min_dist;
+                
+            % Display whether or not prey escaped & score simulation
+            if isempty(R.tEnd)
+%                 disp('prey successfully escaped')
+                
+                % escape = 1 at point (x0,y0,k) if prey escapes
+                B.escape(j,k,i) = 1;
+            else
+%                 disp(['the prey was captured at time = ' num2str(R.tEnd)])
+                
+                % escape = 0 at point (x0,y0,k) if prey captured
+                B.escape(j,k,i) = 0;
+            end
+            
+            % Reconstruct simulation data
+%             R = reconstruct(R, p, d);
+            
+            % Plot trajectories
+%             vis_results('Trajectories',R)    
+
+        end
+
     end
     
     % Update status
@@ -209,10 +191,10 @@ for i = 1:length(B.K)
 end
 
 %% Store data
-% make escape matrix into logical matrix - to use color code quiver vectors
+% make escape matrix into logical matrix - to color code quiver vectors
 B.escape = logical(B.escape);
 
-B.escape_angles = angles;
+B.escape_angles = escape_angles;
 
 % Date and Time string for file name
 % Example output: 18-Dec-2014-11h12m27s
@@ -241,10 +223,25 @@ function update_time(tStart, idx, len, txt)
 
     % Update
     disp([txt 'Done ' num2str(idx) ' of ' num2str(len) ', ~'  ...
-        num2str(time_left) ' min left']);
+        num2str(time_left) ' min left'])
 
 end
 
+%% Function to compute optimal escpae angle at (x0,y0,K)
+function [theta,fval] =  optimTheta(x0,y0,k)
+
+% Use 'fminbnd' by calling fminbnd(@fun,a,b)
+[theta,fval] = fminbnd(@mindist,0,acos(1/k));
+
+% Nested function that computes the objective function     
+    function d = mindist(theta)
+        
+        % minimum distance function
+        d = -1 * ((k*y0 - y0*cos(theta) + x0*sin(theta))^2 / ...
+            (1+k^2-2*k*cos(theta)));
+        
+    end
+end
 
 end
 
