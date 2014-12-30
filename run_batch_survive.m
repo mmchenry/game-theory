@@ -8,23 +8,24 @@ function run_batch_survive(batch_type)
 %% Batch parameters & load angles
 
 % K values
-num_K = 10;
+num_K = 2;
 min_K = 1;
-max_K = 100;  
+max_K = 40;  
 
 % Values for K= predSpd/preySpd (gets coarse as values increase)
 B.K = 10.^linspace(log10(min_K), log10(max_K),num_K)';
+K_vals = B.K;
 
 if (nargin<1) || strcmp(batch_type,'Survive')
     % number of points for x0 & y0
-    num_x0 = 10;    
-    num_y0 = 10;
+    num_x0 = 2;    
+    num_y0 = 2;
     
     % initial position limits (m)
-    min_x0 = 0.05;
-    max_x0 = 0.3;
+    min_x0 = 0;
+    max_x0 = 0.5;
     min_y0 = 0;
-    max_y0 = 0.3;
+    max_y0 = 0.5;
 else
     error('Do not recognize batch_type')
 end
@@ -40,7 +41,8 @@ if isdir('/Users/mmchenry/Dropbox/Literature')
     
 % Or Alberto's
 else    
-    root = '/Users/alberto/Dropbox/Review with Alberto/PredPrey Data';
+%     root = '/Users/alberto/Dropbox/Review with Alberto/PredPrey Data';
+    root = '/Users/alberto/Desktop/Temporary Files';
 %     root = '/Users/A_Soto/Documents/MATLAB/McHenry_LabRotation/angle_data';
 end
 
@@ -55,10 +57,10 @@ dPath = root;
 
 
 % Time span for simulation
-p.param.t_span      = [0 7];        % s
+p.param.t_span      = [0 6];        % s
 
 % Make tank way too big
-p.param.tank_radius = 1;          % m  
+p.param.tank_radius = 2;          % m  
 
 % prey initial position, speed & heading
 p.prey.x0           = 0e-2;         % m
@@ -120,6 +122,28 @@ B.min_dist = zeros(length(B.prey_x0),length(B.prey_y0),length(B.K));
 % preallocate optimal angles matrix
 escape_angles = zeros(length(B.prey_x0),length(B.prey_y0),length(B.K));
 
+%% Compute optimal escape angles
+
+for l = 1:length(K_vals)
+    k_spd = K_vals(l);
+    for m = 1:length(batch_vals1)
+        x0 = batch_vals1(m);
+        parfor n = 1:length(batch_vals2)
+            y0 = batch_vals2(n);
+            
+            % compute current optimal escape angle
+            theta = optimTheta(x0, y0, k_spd);
+            
+            % store optimal escape angle
+            escape_angles(m,n,l) = theta;
+        end
+    end
+end
+disp('optimal angles computed')
+
+B.escape_angles = escape_angles;
+
+
 %% Run Simulation
 % outermost loop runs through speed ratio K
 % middle loop runs through x0, inner loop runs through y0
@@ -143,15 +167,12 @@ for i = 1:length(B.K)
 
             % set current y0
             p.prey.y0 = batch_vals2(k);
-            
-            % compute current optimal escape angle
-            theta = optimTheta(p.prey.x0, p.prey.y0, B.K(i));
-            
-            % store optimal escape angle
-            escape_angles(j,k,i) = theta;
+
+            % extract optimal escape angle
+            escTheta = B.escape_angles(j,k,i);
 
             % Set rotation speed according to optimal theta
-            p.prey.rotSpdEscape = theta ./ p.prey.durEscape;
+            p.prey.rotSpdEscape = escTheta ./ p.prey.durEscape;
             
             % Run simulation
             R   = simple_model(p, d);
@@ -194,8 +215,6 @@ end
 % make escape matrix into logical matrix - to color code quiver vectors
 B.escape = logical(B.escape);
 
-B.escape_angles = escape_angles;
-
 % Date and Time string for file name
 % Example output: 18-Dec-2014-11h12m27s
 s = strcat(datestr(clock,'dd-mmm-yyyy-HH'),'h',...
@@ -227,21 +246,6 @@ function update_time(tStart, idx, len, txt)
 
 end
 
-%% Function to compute optimal escpae angle at (x0,y0,K)
-function [theta,fval] =  optimTheta(x0,y0,k)
-
-% Use 'fminbnd' by calling fminbnd(@fun,a,b)
-[theta,fval] = fminbnd(@mindist,0,acos(1/k));
-
-% Nested function that computes the objective function     
-    function d = mindist(theta)
-        
-        % minimum distance function
-        d = -1 * ((k*y0 - y0*cos(theta) + x0*sin(theta))^2 / ...
-            (1+k^2-2*k*cos(theta)));
-        
-    end
-end
 
 end
 
