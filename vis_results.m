@@ -10,8 +10,7 @@ figure('DoubleBuffer','on')
 % Get color palette
 clrs = get(gca,'ColorOrder');
 
-%TODO: Fix animation code (revert to old method of interpolation)
-
+% Check for 'reconstruct' data
 if ~isfield(R,'pred')
     error('you need to apply "reconstruct.m" to the R structure');
 end
@@ -21,7 +20,7 @@ end
 
 switch graph_type
 
-case 'Turning data'
+case 'Angle and speed'
 % Plot of body orientation and rate of change in orientaion
     
     subplot(2,1,1)
@@ -36,13 +35,13 @@ case 'Turning data'
     idx = 0;
 
     % If any strikes . . .
-    if sum(R.pred.strike) > 0
+    if sum(~isnan(R.pred.strikeTime)) > 0
         
         % Advance index
         idx = idx + 1;
         
         % Plot strikes
-        h(idx) = plot_events(R.t,R.pred.strike,yL,clrs(2,:),0.5);
+        h(idx) = plot_events(R.t,~isnan(R.pred.strikeTime),yL,clrs(2,:),0.5);
         hold on
         
         % Legend text
@@ -51,13 +50,13 @@ case 'Turning data'
     end
     
     % If any escapes . . .
-    if sum(R.prey.escape) > 0
+    if sum(R.prey.escapeOn) > 0
         
         % Advance index
         idx = idx + 1;
         
         % Plot escapes
-        h(idx) = plot_events(R.t,R.prey.escape,yL,clrs(1,:),0.3);
+        h(idx) = plot_events(R.t,R.prey.escapeOn,yL,clrs(1,:),0.3);
         hold on
         
         % Legend text
@@ -77,6 +76,11 @@ case 'Turning data'
     xlabel('Time (s)')
     ylabel('Orientation (deg)')
     legend(h,txt,'Location','NorthWest')
+    if sum(R.prey.captured)
+        title('Capture');
+    else
+        title('Escape')
+    end
     
     hold off
     clear h
@@ -85,7 +89,8 @@ case 'Turning data'
     subplot(2,1,2)
 
     % Figure out y-axis limits
-    h = plot(R.t,R.pred.omega.*180/pi,'-',R.t,R.prey.omega.*180/pi,'-');
+    prey_spd = sqrt(diff(R.xPrey).^2 + diff(R.yPrey).^2)./diff(R.t);
+    h = plot(R.t,R.pred.spd.*100,'-',R.t,R.prey.spd.*100,'-');
     yL = ylim; 
     delete(h)    
     
@@ -93,34 +98,34 @@ case 'Turning data'
     idx = 0;
 
     % If any strikes . . .
-    if sum(R.pred.strike) > 0
+    if sum(~isnan(R.pred.strikeTime)) > 0
         
         % Advance index
         idx = idx + 1;
         
         % Plot strikes
-        h(idx) = plot_events(R.t,R.pred.strike,yL,clrs(2,:),0.5);
+        h(idx) = plot_events(R.t,~isnan(R.pred.strikeTime),yL,clrs(2,:),0.5);
         hold on
     end
     
     % If any escapes . . .
-    if sum(R.prey.escape) > 0
+    if sum(R.prey.escapeOn) > 0
         
         % Advance index
         idx = idx + 1;
         
         % Plot escapes
-        h(idx) = plot_events(R.t,R.prey.escape,yL,clrs(1,:),0.3);
+        h(idx) = plot_events(R.t,R.prey.escapeOn,yL,clrs(1,:),0.3);
         hold on     
     end
     
     % Plot omega
-    h((idx+1):(idx+2)) = plot(R.t,R.pred.omega.*180/pi,'-',R.t,R.prey.omega.*180/pi,'-');
+    h((idx+1):(idx+2)) = plot(R.t,R.pred.spd.*100,'-',R.t,R.prey.spd.*100,'-');
     
     set(h(idx+2),'Color',clrs(1,:))
     set(h(idx+1),'Color',clrs(2,:));
     xlabel('Time (s)')
-    ylabel('Rate of orientation change (deg/s)')
+    ylabel('Speed (cm/s)')
     
     hold off
     
@@ -194,7 +199,7 @@ case 'Animate'
 % Animate simulation
 
     % Duration for playing video (s)
-    play_dur = 10;
+    play_dur = 7;
     
     % Frame rate (Hz) 
     fps = 15;
@@ -202,11 +207,14 @@ case 'Animate'
      % Number of points for the wall 
     num_pts = 200;
     
+    % Number of points for the body
+    num_bod_pts = 200;
+    
     % Radial coordinates for the wall
     phi = linspace(0,2*pi,500);
 
     % Extract wall radius 
-    r = R.p.param.tank_radius;
+    r = R.p.param.tank_radius/20;
     
     % Get limits
     xlims(1) = -r * 1.1;
@@ -223,29 +231,62 @@ case 'Animate'
     % Reconstruct the behavior of predators and prey
     %[pred,prey] = reconstruct(R);  
     
+    % Normalized time vector
+    t_norm = R.t/max(R.t)*play_dur;
+        
+    % Time vector for rendering values
+    t_render = linspace(0,play_dur,fps*play_dur);
+     
+    % Interpolate predator results for even timing
+    xPred       = interp1(t_norm,R.xPred,t_render);
+    yPred       = interp1(t_norm,R.yPred,t_render);
+    thetaPred   = interp1(t_norm,R.thetaPred,t_render);
+    
+    % Strike data
+    for i = 1:size(R.pred.xSuc,1)
+        xSuc(i,:) = interp1(t_norm',R.pred.xSuc(i,:),t_render);
+        ySuc(i,:) = interp1(t_norm',R.pred.ySuc(i,:),t_render);
+    end
+    
+    % Interpolate prey results for even timing
+    xPrey       = interp1(t_norm,R.xPrey,t_render);
+    yPrey       = interp1(t_norm,R.yPrey,t_render);
+    thetaPrey   = interp1(t_norm,R.thetaPrey,t_render);
+    
+    % Find body position of both fish
+    %s = [];  
+
     % Start timer
     clock_start = tic;
       
     % Loop through time
-    for i = 1:length(R.t)
+    for i = 1:length(t_render)
           
         % Draw walls
         h2 = plot(r.*cos(phi),r.*sin(phi),'-k');
         hold on       
+
+        % Transform body points of predator into global FOR
+        [xBodPredG, yBodPredG] = coord_trans('body to global', ...
+                        thetaPred(i), [xPred(i) yPred(i)], R.pred.xBodL, R.pred.yBodL);
+        
+        % Transform body points of prey into global FOR
+        [xBodPreyG, yBodPreyG] = coord_trans('body to global', ...
+            thetaPrey(i), [xPrey(i) yPrey(i)], R.prey.xBodL, R.prey.yBodL);
         
         % Render traces
-        h = plot(pred.x(1:i),pred.y(1:i),'-',prey.x(1:i),prey.y(1:i),'-');
+        h = plot(xPred(1:i),yPred(1:i),'-',xPrey(1:i),yPrey(1:i),'-');
        
         % Render predator
-        hB(1) = fill(pred.xBodG(:,i),pred.yBodG(:,i),clrs(2,:));
+        hB(1) = fill(xBodPredG,yBodPredG,clrs(2,:));
         set(hB(1),'EdgeColor','none')
 
         % Render prey
-        hB(2) = fill(prey.xBodG(:,i),prey.yBodG(:,i),clrs(1,:));
+        hB(2) = fill(xBodPreyG,yBodPreyG,clrs(1,:));
         set(hB(2),'EdgeColor','none')
               
         % Render suction field
-        bS = plot(pred.xSuc(:,i), pred.ySuc(:,i),'k');
+        bS = plot(xSuc(:,i), ySuc(:,i),'k');
         
         % Set axis
         axis square
@@ -289,7 +330,7 @@ case 'Animate'
         warning(['Could not render animation fast enough to play at' ...
             ' requested duration']);
     end
-
+     
     
 end
 

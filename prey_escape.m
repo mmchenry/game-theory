@@ -16,17 +16,16 @@ switch version
             omega = omega0;
             spd = spd0;
             
-            % Otherwise . . .
+        % Otherwise . . .
         else
             
             % Time since start of escape
             escapeTime = t-stimTime-prey.lat;
             
-            % Set omega and speed according to current time and change function
-            
+            % Set omega and speed according to current time and change function   
             omega = change_func(escapeTime, prey.rotSpdEscape, prey.durEscape);
-            spd = change_func(escapeTime, prey.spdEscape, prey.durEscape);
-            omega = dirEsc .* omega;
+            spd    = change_func(escapeTime, prey.spdEscape, prey.durEscape);
+            omega  = dirEsc .* omega;
         end
 
     case 'Weihs'
@@ -37,11 +36,13 @@ switch version
             omega = omega0;
             spd = spd0;
             
-            % Otherwise . . .
+        % Otherwise . . .
         else
             escapeTime = t-stimTime-prey.lat;
             omega = change_func2(escapeTime, prey.rotSpdEscape,...
-                prey.durEscape);
+                                 prey.durEscape);
+                             
+            % Note: Speed unaltered
         end
         
 end
@@ -57,7 +58,6 @@ y = amp.*(0.5.*(sin(2*pi*t./dur - pi/2)+1));
 end
 
 function y = change_func2(t,amp,dur)
-
 % function describing the turning rate
 
 y = amp.*(sin(2*pi*t./dur - pi/2) + 1);

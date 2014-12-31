@@ -33,6 +33,9 @@ options  = odeset('RelTol',p.param.rel_tol,...
               
 %% Solve & save results in SI units
 
+global captured
+captured = 0;
+
 % Run solver
 [t,X,t_event] = solver(p,options);
 
@@ -44,6 +47,9 @@ R.X(:,3)        = X(:,3);
 R.X(:,4)        = X(:,4)    .* sL;
 R.X(:,5)        = X(:,5)    .* sL;
 R.X(:,6)        = X(:,6);
+R.capture       = captured;
+
+%clear capture
 
 % Same data, with field names
 R.tEnd          = t_event   .* sT;
@@ -68,11 +74,14 @@ X0(5,1) = p.pred.y0;
 X0(6,1) = p.pred.theta0;
 
 % Intialize global status on a capture
-global captured
+% Declare global variable
+    %global stopsim captured
+stopsim  = 0;
 captured = 0;
 
 % Intitialize state variables
-s = give_behavior('Initialize', p);
+%s = give_behavior('Initialize', p);
+s = [];
 
 % RUN SOLVER --------------------------------------------------------------
 
@@ -81,48 +90,15 @@ s = give_behavior('Initialize', p);
 
     function dX = gov_eqn(t,X)
     % ODE for the dynamics of the system
-    
-        % Find body position of both fish
-        s = give_behavior('Body positions', p, s, t, X);   
         
         % BEHAVIORAL CHANGES ----------------------------------------------
+        s = give_behavior(p.param.sim_type, p, s, t, X);
 
-        if strcmp(p.param.sim_type,'default')
-            % Set prey behavior
-            s = give_behavior('Prey', p, s, t, X);
-            
-            % Set predator behavior
-            s = give_behavior('Predator', p, s, t, X);
-            
-            % Determine whether prey is captured
-            s = give_behavior('Strike', p, s, t, X);
-            
-        elseif strcmp(p.param.sim_type,'Weihs')
-            % Set predator and prey behavior for Weihs situation
-            s = give_behavior('Weihs', p, s, t, X);
-            
-        elseif strcmp(p.param.sim_type,'Weihs, acceleration')
-            % Set predator and prey behavior for Weihs situation
-            s = give_behavior('Weihs, acceleration', p, s, t, X);
-            
-        elseif strcmp(p.param.sim_type,'Weihs, survive')
-            % Set predator and prey behavior 
-            s = give_behavior('Weihs, survive', p, s, t, X);
-            
-            % Determine whether prey is captured
-            s = give_behavior('Strike', p, s, t, X);
-            
-        else
-            error('Simulation type not recognized');
-            
-        end
-        
         % Update global 'captured' variable
-        captured = s.captured;
+        captured = s.prey.captured;
+        stopsim = s.stopsim;      
         
-        %vis_instant(s,p)
-        
-        % OUTPUTS --------------------------------------------------------- 
+        % OUTPUTS ---------------------------------------------------------
         
         % Prey velocity in x & y directions
         dX(1,1) = s.prey.spd * cos(s.prey.theta);
@@ -146,11 +122,11 @@ end
 function [value, isterminal, direction] = capture_fnc(~,X)
     
     % Declare global variable
-    global captured
+    global stopsim %captured
     
     % the event occurs when distance is less than capture distance
     %distance = hypot(X(4)-X(1),X(5)-X(2));
-    if captured %|| (X(4)>X(1))
+    if stopsim %|| (X(4)>X(1))
         %distance < p.param.d_capture
         value      = 0;
         isterminal = 1;         % tells ode45 to stop integration

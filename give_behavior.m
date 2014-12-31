@@ -1,4 +1,4 @@
-function s = give_behavior(action, p, s, t, X)
+function s = give_behavior(sim_type, p, s, t, X)
 % Determines the behavior of each fish for a single instant of time
 %
 % action    - String indicating which code to run (1xn)
@@ -6,6 +6,66 @@ function s = give_behavior(action, p, s, t, X)
 % s         - Structure of behavioral state variables 
 % t         - Current time (1x1)
 % X         - Vector of simulation results (6x1)
+
+% Initialize, if needed
+if isempty(s)
+    s = behavior('Initialize', p);
+end
+
+% Find body position of both fish
+s = behavior('Body positions', p, s, t, X);
+
+if strcmp(sim_type,'default')
+    % Set prey behavior
+    s = behavior('Prey', p, s, t, X);
+    
+    % Set predator behavior
+    s = behavior('Predator', p, s, t, X);
+    
+    % Determine whether prey is captured
+    s.pred.strike_type = 'Deterministic';
+    s = behavior('Strike', p, s, t, X);
+    
+elseif strcmp(sim_type,'Weihs')
+    % Set predator and prey behavior for Weihs situation
+    s = behavior('Weihs', p, s, t, X);
+    
+elseif strcmp(sim_type,'Weihs, acceleration')
+    % Set predator and prey behavior for Weihs situation
+    s = behavior('Weihs, acceleration', p, s, t, X);
+    
+elseif strcmp(sim_type,'Weihs, survive')
+    % Set predator and prey behavior
+    s = behavior('Weihs, survive', p, s, t, X);
+    
+    % Determine whether prey is captured
+    s.pred.strike_type = 'Deterministic';
+    s = behavior('Strike', p, s, t, X);
+    
+elseif strcmp(sim_type,'Simple strike')
+    % Set predator and prey behavior for Weihs situation
+    s = behavior('Weihs, acceleration', p, s, t, X);
+    
+    % Stop simulation, if strike completed . . .
+    if ~isnan(s.pred.strikeTime) && (t > (s.pred.strikeTime + p.pred.strike_dur))
+        s.stopsim = 1;
+        
+        
+    else
+        % Execute strike, determine whether prey is captured
+        %s.pred.strike_type = 'Probabilistic';
+        s.pred.strike_type = 'Deterministic';
+        s = behavior('Strike', p, s, t, X);
+    end
+    
+else
+    error('Simulation type not recognized');
+    
+end
+
+end
+
+function s = behavior(action, p, s, t, X)
 
 
 % Unpack simulation state variables, if provided
@@ -29,10 +89,6 @@ if nargin > 4
     dist = hypot(xPrey-xPred,yPrey-yPred);
     
 end
-
-
-% Set default state for 'captured' field
-s.captured = 0;
 
 
 % Execute major code called for
@@ -88,7 +144,13 @@ case 'Initialize'
     s.prey.dirEsc = 1;
     
     % Count the number of escape initiations
-    s.escapeNum = 1;
+    s.prey.escapeNum = 1;
+    
+    % Initial prey speed
+    s.prey.spd = p.prey.spd0;
+    
+    % Set default state for 'captured' field
+    s.prey.captured = 0;
 
     % VISUAL SYSTEM PARAMETERS ------------------------------------------------
     
@@ -100,6 +162,9 @@ case 'Initialize'
     
     % Visual appearence of prey body
     [s.prey.xBodL, s.prey.yBodL] = give_coord('body coordinates',p.prey,p.prey.numBodPts);
+
+    % Simulation stopping parameter
+    s.stopsim = 0;
 
     % Reset random number generator
     rng(1);
@@ -282,8 +347,14 @@ case 'Predator'
     
 case 'Strike'    
 
+% Make sure strike type is defined
+if ~isfield(s.pred,'strike_type')    
+    warning('Strike type set to Deterministic');
+    s.pred.strike_type = 'Deterministic';
+end
+    
 % Default values
-s.captured  = 0;
+s.prey.captured  = 0;
 numSuc      = p.pred.numBodPts/2;
 s.pred.xSuc = zeros(numSuc+2,1);
 s.pred.ySuc = zeros(numSuc+2,1);
@@ -296,7 +367,7 @@ if isnan(s.pred.strikeTime) &&  (dist <= p.pred.strike_thresh)
 end
 
 % If strike started . . .
-if ~isnan(s.pred.strikeTime)
+if ~isnan(s.pred.strikeTime) && (t>=s.pred.strikeTime)
     
     % If not finished . . .
     if t < (s.pred.strikeTime + p.pred.strike_dur)
@@ -326,14 +397,26 @@ if ~isnan(s.pred.strikeTime)
         % Polar coordinates of prey body in pred FOR
         [phiPreyPred, rPreyPred] = cart2pol(xPreyPred, yPreyPred);
         
+        % Set range, based on strike type
+        if strcmp(s.pred.strike_type, 'Deterministic')
+            cap_range = s.pred.rSuc;
+            
+        elseif strcmp(s.pred.strike_type, 'Probabilistic')
+            cap_range = random('chi2',2,1)./2.*s.pred.rSuc;
+            
+        else
+            error('Do not recognize requested strike type')
+        end
+        
         % Index of points in capture zone
-        idx = (rPreyPred < s.pred.rSuc) & ...
+        idx = (rPreyPred < cap_range) & ...
             (phiPreyPred >= -p.pred.strike_range/2) & ...
             (phiPreyPred <= p.pred.strike_range/2);
         
         % Captured, if more than half body in capture zone
         if sum(idx) > (length(idx)/2)
-            s.captured = 1;
+            s.prey.captured = 1;
+            s.stopsim = 1;
         end
         
     % If beyond duration . . .
@@ -370,7 +453,7 @@ case 'Weihs'
     % ---------------------------------------------------------- %
         
     % If only one escape maneuver has been initiated . . . 
-    if s.escapeNum < 2
+    if s.prey.escapeNum < 2
         
         % If within escape response AND distance threshold
         if ~s.prey.escapeOn && dist < p.prey.thrshEscape
@@ -387,7 +470,7 @@ case 'Weihs'
             s.prey.omega = 0;
             
             % update the number of escape responses
-            s.escapeNum = s.escapeNum + 1;
+            s.prey.escapeNum = s.prey.escapeNum + 1;
         end
         
         % If we are within the period of an escape . . .
@@ -425,10 +508,10 @@ case 'Weihs, acceleration'
     s.pred.theta = X(6);
        
     % If only one escape maneuver has been initiated . . . 
-    if s.escapeNum < 2
+    if s.prey.escapeNum < 2
         
         % If within escape response AND distance threshold
-        if ~s.prey.escapeOn && dist < p.prey.thrshEscape
+        if ~s.prey.escapeOn && (dist < p.prey.thrshEscape)
             % Indicate that we are in an escape response
             s.prey.escapeOn = 1;
             
@@ -443,13 +526,13 @@ case 'Weihs, acceleration'
             s.prey.omega = 0;
             
             % update the number of escape responses
-            s.escapeNum = s.escapeNum + 1;
+            s.prey.escapeNum = s.prey.escapeNum + 1;
         end
         
         % If we are within the period of an escape . . .
         if s.prey.escapeOn
             s.prey.spd = p.prey.spdEscape/p.prey.durEscape * ...
-                        (t-s.prey.stimTime);
+                        (t-s.prey.stimTime) + p.prey.spd0;
             s.prey.omega = prey_escape(t, s.prey.stimTime,...
                           p.prey, 0, 0, 1,'Weihs');
         else
@@ -484,7 +567,7 @@ case 'Weihs, survive'
     % PREY BEHAVIOR --------------------------------------
         
     % If only one escape maneuver has been initiated . . . 
-    if s.escapeNum < 2
+    if s.prey.escapeNum < 2
         
         % If within escape response AND distance threshold
         if ~s.prey.escapeOn && dist < p.prey.thrshEscape
@@ -501,7 +584,7 @@ case 'Weihs, survive'
             s.prey.omega = 0;
             
             % update the number of escape responses
-            s.escapeNum = s.escapeNum + 1;
+            s.prey.escapeNum = s.prey.escapeNum + 1;
         end
         
         % If we are within the period of an escape . . .
@@ -549,9 +632,11 @@ case 'Weihs, survive'
         s.pred.omega = 0;
         
     end
+
     
 end
 
+end
 
 function [x,y] = give_coord(kind,p,num_pts)
 % Returns coordinates requested, based on given parameter values
@@ -578,4 +663,5 @@ if strcmp(kind,'body coordinates')
     
 else
     error('"kind" input not recognized');
+end
 end

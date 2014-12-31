@@ -1,47 +1,80 @@
-function R = reconstruct(R, p, d)
+function R = reconstruct(R, p, d, type)
 % Reconstructs events in simulation
+
+% Defaults
+if nargin < 4
+    type = 'full';
+end
+
+% Major field names
+fName{1} = 'prey';
+fName{2} = 'pred';
+%fName{3} = 'param';
 
 % Store input parameters
 R.p     = p;
 R.d     = d;
 
-% Intitialize state variables
-s = give_behavior('Initialize', R.p);
+% Create 's' structure
+s = [];
 
 % Step thru time
 for i = 1:length(R.t)
-
-    % Find body position of both fish
-    s = give_behavior('Body positions', R.p, s, R.t(i), R.X(i,:));
     
-    % Set prey behavior
-    s = give_behavior('Prey', R.p, s, R.t(i), R.X(i,:));
+    % BEHAVIORAL CHANGES (for current time)
+    s = give_behavior(p.param.sim_type, p, s, R.t(i), R.X(i,:));
     
-    % Set predator behavior
-    s = give_behavior('Predator', R.p, s, R.t(i), R.X(i,:));
+    % GET ALL VALUES IN "S" STRCUTURE
+    % Step thru each major field ('pred' and 'prey')
+    for j = 1:2
+        
+        % Get sub-field names
+        eval(['names = fieldnames(s.' fName{j} ');']);
+        
+        % Step thru sub-fields
+        for k = 1:length(names)
+            
+            % Get parameter value for current field
+            eval(['valIn = s.' fName{j} '.' names{k} ';'])
+            
+            % Pass value into field
+            if ~(strcmp(names{k}(2:end),'BodL') && (i>1))
+                if length(valIn)==1
+                    eval(['R.' fName{j} '.' names{k} '(i,1) = valIn;' ])
+                elseif size(valIn,2)==1
+                    eval(['R.' fName{j} '.' names{k} '(:,i) = valIn;' ])
+                elseif size(valIn,1)==1
+                    eval(['R.' fName{j} '.' names{k} '(i,:) = valIn;' ])
+                else
+                    error('Cannot deal with 2D matricies')
+                end
+            end
+        end
+    end
     
-    % Determine whether prey is captured
-    s = give_behavior('Strike', R.p, s, R.t(i), R.X(i,:));   
-    
-    % Store coordinates for suction
-    R.pred.xSuc(:,i)    = s.pred.xSuc;
-    R.pred.ySuc(:,i)    = s.pred.ySuc;
-    
-    % Store rates of change
-    R.pred.omega(i,1)   = s.pred.omega;
-    R.prey.omega(i,1)   = s.prey.omega;
-    R.prey.spd(i,1)     = s.prey.spd;
-    
-    % Predator behavioral states
-    R.pred.strike(i,1)  = ~isnan(s.pred.strikeTime);
-    R.pred.seePrey(i,1) = ~isnan(s.pred.inFieldTime);
-    R.pred.onSccd(i,1)  = s.pred.onSccd;
-    R.pred.thetaTarget(i,1) = s.pred.thetaTarget;
-    
-    % Prey behavioral states
-    R.prey.escape(i,1)         = s.prey.escapeOn;
-    R.prey.onSccd(i,1)         = s.prey.onSccd;
-    
-    % TODO: Store other behaviors (escape, walls, saccades) & sensory
-    % events
 end
+
+
+%  % Store coordinates for suction
+%     R.pred.xSuc(:,i)    = s.pred.xSuc;
+%     R.pred.ySuc(:,i)    = s.pred.ySuc;
+%     R.pred.rSuc(:,i)    = s.pred.rSuc;
+%     
+%     % Store rates of change
+%     R.pred.omega(i,1)   = s.pred.omega;
+%     R.prey.omega(i,1)   = s.prey.omega;
+%     R.pred.spd(i,1)     = s.pred.spd;
+%     R.prey.spd(i,1)     = s.prey.spd;
+%     
+%     % Predator behavioral states
+%     R.pred.strike(i,1)  = ~isnan(s.pred.strikeTime);
+%     R.pred.seePrey(i,1) = ~isnan(s.pred.inFieldTime);
+%     R.pred.onSccd(i,1)  = s.pred.onSccd;
+%     R.pred.thetaTarget(i,1) = s.pred.thetaTarget;
+%     
+%     % Prey behavioral states
+%     R.prey.escape(i,1)         = s.prey.escapeOn;
+%     R.prey.onSccd(i,1)         = s.prey.onSccd;
+%     R.prey.captured(i,1)       = s.captured;
+
+

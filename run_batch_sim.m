@@ -1,6 +1,7 @@
 function run_batch_sim(batch_type)
-% RUN_BATCH_SIM runs batch simulations of 'simple_model' for Weihs
-% situation
+% RUN_BATCH_SIM runs batch simulations of 'simple_model'.  At each
+% parameter value, the optimization attempts to find the escape angle that
+% maximizes the minimum distance.
 
 
 %% Code execution
@@ -10,6 +11,14 @@ run_batch = 1;
 
 % Visualize simulations results during execution
 vis_sims = 1;
+
+% Default batch_type
+if (nargin<1)
+    batch_type = 'Distance';
+end
+
+opt_type = 'Distance';
+%opt_type = 'Survival';
 
 
 %% Batch parameters
@@ -35,6 +44,11 @@ elseif strcmp(batch_type,'Acceleration')
     min_dur = 5e-3;
     max_dur = 300e-3;
     
+elseif strcmp(batch_type,'Strike thresh')
+    % Strike threshold (m)
+    num_thresh  = 3;
+    min_thresh  = 0.5e-2;
+    max_thresh  = 1.1e-2;
 else
     error('Do not recognize batch_type')
 end
@@ -55,14 +69,13 @@ else
 end
 
 % Path to data
-dPath = [root];
+dPath = root;
 
 
-%% Simulation parameters
+%% General parameters
 
 % Default parameter values
 [p,d] = default_params;
-
 
 % Time span for simulation
 p.param.t_span   = [0 4];      % s
@@ -89,13 +102,10 @@ p.pred.theta0 = 0;                  % rad
 % Values for K= predSpd/preySpd (gets coarse as values increase)
 B.K = 10.^linspace(log10(min_K), log10(max_K),num_K)';
 
-% Store parameters
-B.p = p;
-B.d = d;
 
 %% Parameters for each batch type
 
-if (nargin<1) ||strcmp(batch_type,'Distance')
+if strcmp(batch_type,'Distance')
     % Values for prey initial position (acts as response distance)
     B.prey_x0         = linspace(min_dist, max_dist, num_dist)';
     
@@ -123,10 +133,43 @@ elseif strcmp(batch_type,'Acceleration')
     
     % Absolute tolerance
     p.param.abs_tol  = 1e-11;
+    
+elseif strcmp(batch_type,'Strike thresh')
+    
+    % Strike parameters
+    B.strike_thresh     = linspace(min_thresh, max_thresh, num_thresh);
+    batch_vals          = B.strike_thresh;
+    p.param.sim_type    = 'Simple strike';
+    
+    % Prey parameters 
+    p.prey.spd0         = 0;
+    p.prey.thrshEscape  = 0.5e-2; % m
+    p.prey.x0           = 2e-2; % m
+    p.prey.theta0       = 0;
+    p.prey.lat          = 0;
+    
+    % Scaling parameters
+    p.param.sL      = 1;   % m
+    p.param.sT      = 1;      % s
+    
+    % Predator parameters
+    p.pred.theta0       = 0;
+    p.pred.spd0         = 10e-2; %m/s
+    
+    % Relative tolerance
+    p.param.rel_tol  = 1e-9;
+    
+    % Absolute tolerance
+    p.param.abs_tol  = 1e-9;
+    
 end
 
+% Store parameters
+B.p = p;
+B.d = d;
 
-%% Run Simulation
+
+%% Run Simulations
 % outermost loop runs through initial distances
 % middle loop runs through speeds, inner loop runs through angles
 
@@ -156,6 +199,11 @@ for i = 1:length(batch_vals)
         % Set current escape duration (to vary acceleration)
         p.prey.durEscape = batch_vals(i);
         p.param.max_step = p.prey.durEscape/2;
+        
+    elseif strcmp(batch_type,'Strike thresh')
+        % Set strike threshold
+        p.pred.strike_thresh = batch_vals(i);
+        
     end  
     
     % Loop thru escape speeds
@@ -165,16 +213,23 @@ for i = 1:length(batch_vals)
         p.prey.spdEscape = p.pred.spd0./B.K(j);
         %p.pred.spd0 = p.prey.spdEscape * B.K(j);
         
-        % Check whether min dist varies with theta
+        % Check if min dist fails to vary with theta
         if simFunction(pi/8, p, d) == simFunction(3.3*pi/4, p, d)
             warning('Failed optimization: Theta has no effect on min distance');
             min_dist       = nan;
             theta_maxmin   = nan;
+            capture        = nan;
         
-        % If so . . .
+        % If min dist does vary with theta . . .
         else          
-            % Optimization for finding the optimal theta
-            theta_maxmin = fminbnd(@(theta) simFunction(theta, p, d),0,max_ang/180*pi);
+            % Run requested optimization
+            if strcmp(opt_type, 'Distance')
+                % Optimization for finding the optimal theta
+                theta_maxmin = fminbnd(@(theta) simFunction(theta, p, d), ...
+                                       0,max_ang/180*pi);
+            else
+                error('Do not recognize requested opt_type')
+            end
             
             % Set rotation speed according to optimal theta
             p.prey.rotSpdEscape = theta_maxmin ./ p.prey.durEscape;
@@ -182,7 +237,10 @@ for i = 1:length(batch_vals)
             % Run simulation
             R   = simple_model(p, d);
             
-            % Reconstruct simulation data
+            % Log capture
+            capture = R.capture;
+            
+            % Reconstruct simulation data (for troubleshooting)
             %R = reconstruct(R, p, d);
             
             % Distance between predator and prey
@@ -192,6 +250,7 @@ for i = 1:length(batch_vals)
         % Store optimal theta & minimum distance
         B.theta_maxmin(j,i)     = theta_maxmin;
         B.min_dist(j,i)         = min_dist;
+        B.capture(j,i)          = capture;
             
         % Update plot
         if vis_sims
@@ -218,6 +277,8 @@ for i = 1:length(batch_vals)
     %update_time(tStart, i, length(B.prey_x0), '');
 
 end
+
+close(f)
 
 % Date and Time string for file name
 % Example output: 18-Dec-2014-11h12m27s
@@ -310,6 +371,26 @@ legend(l_txt)
 
 
 function y = simFunction(theta, p, d)
+% Minimize this function to find the angle theta that maximizes the
+% minimum distance
+    % set current speed of rotation
+    p.prey.rotSpdEscape = theta ./ p.prey.durEscape;
+    
+    % Run Simulation
+    R   = simple_model(p, d);
+
+    % Distance between predator and prey
+    min_dist = min(hypot(R.xPred-R.xPrey,R.yPred-R.yPrey));
+
+    % Take inverse of min dist b/c the optimization attempts to find the theta
+    % that produces the smallest number 
+    y = -min_dist;
+
+end
+
+
+function y = simFunction2(theta, p, d)
+% Minimize this function to 
 
     % set current speed of rotation
     p.prey.rotSpdEscape = theta ./ p.prey.durEscape;

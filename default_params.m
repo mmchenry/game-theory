@@ -37,10 +37,10 @@ d.param.sim_type = '';
 %% Prey parameters  
 
 % Initial body position & orientation 
-p.prey.x0           = -1e-2;      % m          
+p.prey.x0           = 2e-2;      % m          
 d.prey.x0           = 'L';
 
-p.prey.y0           = -1e-2;      % m    
+p.prey.y0           = 0; %-1e-2;      % m    
 d.prey.y0           = 'L';
 
 p.prey.theta0         = (180-30)/180*pi; % rad    
