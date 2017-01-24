@@ -1,4 +1,4 @@
-function run_batch_survive(batch_type)
+function run_batch_survive_2(batch_type)
 % RUN_BATCH_SURVIVE runs batch simulations of 'simple_model' to determine
 % whether or not the prey survives given (x0,y0), k, and escape angle. The
 % optimal escape angle is computed by calling the nested function
@@ -9,24 +9,23 @@ function run_batch_survive(batch_type)
 
 % K values
 num_K = 1;
-min_K = 2;
-max_K = 2;  
+min_K = 1.001;
+max_K = 1.197;  
 
 % Values for K= predSpd/preySpd (gets coarse as values increase)
 B.K = 10.^linspace(log10(min_K), log10(max_K),num_K)';
 K_vals = B.K;
 
 if (nargin<1) || strcmp(batch_type,'Survive')
-    
     % number of points for x0 & y0
-    num_x0 = 1;    
-    num_y0 = 1;
+    num_x0 = 15;    
+    num_y0 = 15;
     
     % initial position limits (m)
     min_x0 = 0;
-    max_x0 = 0.005;
+    max_x0 = 0.065;
     min_y0 = 0;
-    max_y0 = 0.025;
+    max_y0 = 0.05;
 else
     error('Do not recognize batch_type')
 end
@@ -58,10 +57,10 @@ dPath = root;
 
 
 % Time span for simulation
-p.param.t_span      = [0 8];        % s
+p.param.t_span      = [0 2];        % s
 
 % Make tank way too big
-p.param.tank_radius = 2;          % m  
+p.param.tank_radius = 0.5;          % m  
 
 % prey initial position, speed & heading
 p.prey.x0           = 0e-2;         % m
@@ -70,7 +69,7 @@ p.prey.spd0         = 0;            % m/s
 p.prey.theta0       = 0;            % rad  
 
 % distance threshold for prey escape response
-p.prey.thrshEscape  = 5e-2;         % m
+p.prey.thrshEscape  = 1.05e-2;         % m
 
 % prey escape duration (time to reach escape angle)
 p.prey.durEscape    = 25e-3;        % s
@@ -81,14 +80,14 @@ p.param.max_step = p.prey.durEscape/2;
 % predator initial position, speed & heading
 p.pred.x0           = 0e-2;         % m
 p.pred.y0           = 0;            % m
-p.pred.spd0         = 8e-2;         % m/s
+p.pred.spd0         = 5e-2;         % m/s
 p.pred.theta0       = 0;            % rad
 
-% Peak rate of rotation encounter with wall (use for targeted swimming)
-p.pred.wall_omega   = 25;           % rad/s
+% Angular spread of capture area
+p.pred.strike_range   = 2*pi/3;  % rad
 
-% strike threshold
-p.pred.strike_thresh  = 2.5e-2;  % m
+% Maximum distance of capture
+p.pred.strike_reach   = 7.5e-3;  % m
 
 % Store parameters
 B.p = p;
@@ -97,8 +96,6 @@ B.d = d;
 %% Parameters for batch type
 
 if (nargin<1) ||strcmp(batch_type,'Survive')
-    % Define simulation type
-    p.param.sim_type    = 'Weihs, surive';
     
     % Values for prey initial position 
     B.prey_x0         = linspace(min_x0, max_x0, num_x0)';
@@ -194,24 +191,22 @@ for i = 1:length(B.K)
                 
             % Display whether or not prey escaped & score simulation
             if isempty(R.tEnd)
-                disp('prey successfully escaped')
+%                 disp('prey successfully escaped')
                 
                 % escape = 1 at point (x0,y0,k) if prey escapes
                 B.escape(j,k,i) = 1;
             else
-                disp(['the prey was captured at time = ' num2str(R.tEnd)])
+%                 disp(['the prey was captured at time = ' num2str(R.tEnd)])
                 
                 % escape = 0 at point (x0,y0,k) if prey captured
                 B.escape(j,k,i) = 0;
             end
             
             % Reconstruct simulation data
-            R = reconstruct(R, p, d);
+%             R = reconstruct(R, p, d);
             
             % Plot trajectories
-            vis_results('Trajectories',R)
-            
-%             vis_results('Turning data',R)
+%             vis_results('Trajectories',R)    
 
         end
 
@@ -232,11 +227,49 @@ s = strcat(datestr(clock,'dd-mmm-yyyy-HH'),'h',...
     datestr(clock, 'MM'),'m',datestr(clock,'ss'),'s');
 
 if strcmp(batch_type,'Survive')
-    s = ['Survive batch-' s]; 
+    s = ['SurviveBatch-' s]; 
 end
 
 % Save all data
 % save([dPath filesep s],'B','-v7.3')
+
+%% plot vectors
+escape = permute(B.escape,[2 1 3]);
+x0 = B.prey_x0;
+y0 = B.prey_y0;
+theta = permute(B.escape_angles,[2 1 3]);
+[x,y]=meshgrid(x0,y0);
+r = min(x0(2)-x0(1),y0(2)-y0(1)); % scaling factor for all vectors
+
+for j = 1:length(K_vals)
+    
+    ind1 = find(escape(:,:,j)==1);
+    ind2 = find(escape(:,:,j)==0);
+    F = figure(j);
+    title(['K = ' num2str(K_vals(j))])
+    hold on
+    thetaC = theta(:,:,j);
+    
+    % plot vectors of successful escape
+    h1 = quiver(x(ind1),y(ind1),r*cos(thetaC(ind1)),r*sin(thetaC(ind1)),0);
+    h1.Color = 'b';
+    h1.LineWidth = 1;
+    
+    % plot vectors of capture
+    h2 = quiver(x(ind2),y(ind2),r*cos(thetaC(ind2)),r*sin(thetaC(ind2)),0);
+    h2.Color = 'r';
+    h1.LineWidth = 1;
+    
+    axis image
+    
+    % save current figure
+    fname = strcat(s, 'K=', num2str(K_vals(j)),'.eps');
+    fpath = fullfile(dPath,fname);
+%     print(F, '-depsc', fpath)
+
+end
+
+
 
 %% Update status 
 function update_time(tStart, idx, len, txt)

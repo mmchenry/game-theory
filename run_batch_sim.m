@@ -24,13 +24,13 @@ opt_type = 'Distance';
 %% Batch parameters
 
 % K values
-num_K = 10;
-min_K = 1;
+num_K = 1;
+min_K = 2;
 max_K = 100;
 
 % Angle values
 min_ang = 0;
-max_ang = 180;
+max_ang = 90;
 
 if (nargin<1) || strcmp(batch_type,'Distance')
     % Response distances (m)

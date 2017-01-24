@@ -33,8 +33,8 @@ options  = odeset('RelTol',p.param.rel_tol,...
               
 %% Solve & save results in SI units
 
-global captured
-captured = 0;
+% global captured
+% captured = 0;
 
 % Run solver
 [t,X,t_event] = solver(p,options);
@@ -47,7 +47,7 @@ R.X(:,3)        = X(:,3);
 R.X(:,4)        = X(:,4)    .* sL;
 R.X(:,5)        = X(:,5)    .* sL;
 R.X(:,6)        = X(:,6);
-R.capture       = captured;
+% R.capture       = captured;
 
 %clear capture
 
@@ -75,7 +75,7 @@ X0(6,1) = p.pred.theta0;
 
 % Intialize global status on a capture
 % Declare global variable
-    %global stopsim captured
+    global stopsim captured
 stopsim  = 0;
 captured = 0;
 
@@ -96,7 +96,7 @@ s = [];
 
         % Update global 'captured' variable
         captured = s.prey.captured;
-        stopsim = s.stopsim;      
+%         stopsim = s.stopsim;      
         
         % OUTPUTS ---------------------------------------------------------
         
@@ -122,11 +122,13 @@ end
 function [value, isterminal, direction] = capture_fnc(~,X)
     
     % Declare global variable
-    global stopsim %captured
+    global captured
+%     global stopsim %captured
     
     % the event occurs when distance is less than capture distance
-    %distance = hypot(X(4)-X(1),X(5)-X(2));
-    if stopsim %|| (X(4)>X(1))
+    distance = hypot(X(4)-X(1),X(5)-X(2));
+%     if stopsim %|| (X(4)>X(1))
+    if captured || (distance < 1e-9)
         %distance < p.param.d_capture
         value      = 0;
         isterminal = 1;         % tells ode45 to stop integration

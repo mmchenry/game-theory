@@ -243,7 +243,7 @@ case 'Prey'
             
             % Set escape response direction
             dirEsc = rand(1);
-            dirEsc = (dirEsc-.5)./abs(dirEsc-.5);
+            s.prey.dirEsc = (dirEsc-.5)./abs(dirEsc-.5);
             
             % Determine speed of rotation of escape
             % normrnd(m,s) returns rndm # from norm dist. w/ mean=m,stdev=s
@@ -589,7 +589,8 @@ case 'Weihs, survive'
         
         % If we are within the period of an escape . . .
         if s.prey.escapeOn
-            s.prey.spd = p.prey.spdEscape;
+            s.prey.spd = p.prey.spdEscape/p.prey.durEscape * ...
+                        (t-s.prey.stimTime) + p.prey.spd0;
             s.prey.omega = prey_escape(t, s.prey.stimTime,...
                 p.prey, 0, 0, 1,'Weihs');
         else
@@ -603,35 +604,12 @@ case 'Weihs, survive'
     end
     
     % PREDATOR BEHAVIOR------------------
-    
-    % NOTE: for this simulation, pred does not forage or detect wall, pred
-    % travels along x-axis until prey is detected then initiates strike
-    
+
     % Predator speed (fixed)      
     s.pred.spd = p.pred.spd0;
     
-    % Determine whether prey is detected using 'see_fish'
-    [s.pred.thetaTarget, s.pred.inFieldTime] = see_fish(t, [xPred yPred], ...
-        thetaPred, s.prey.xBodG, s.prey.yBodG, p.pred, ...
-        s.pred.inFieldTime, s.pred.thetaTarget);
-        
-    % If prey visible (i.e. thetaTargetPred is not a nan) . . .
-    if ~isnan(s.pred.thetaTarget)
-        
-        % Normalized deviation
-        norm_dev = (s.pred.thetaTarget - thetaPred)/pi;
-        
-        % TARGETED SWIMMING: Adjust direction of predator, according
-        % to position of prey
-        s.pred.omega = norm_dev * p.pred.wall_omega;
-        
-    % If prey not visible . . .
-    else
-        
-        % Continue on current trajectory
-        s.pred.omega = 0;
-        
-    end
+    % Continue on current trajectory
+    s.pred.omega = 0;
 
     
 end
